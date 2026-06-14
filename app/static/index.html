@@ -71,6 +71,7 @@
   .badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:.75rem;font-weight:700}
   .badge-loader{background:rgba(79,152,163,.18);color:var(--pri)}
   .badge-ver{background:rgba(255,255,255,.07);color:var(--muted)}
+  .badge-server{background:rgba(109,170,69,.18);color:#6daa45}
   .pack-title{font-weight:700;font-size:1rem;line-height:1.3}
   .pack-summary{font-size:.83rem;color:var(--muted);line-height:1.5;flex:1}
   .pack-footer{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
@@ -90,6 +91,7 @@
   .form-divider{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);padding:4px 0;border-top:1px solid var(--bdr)}
   .modal-footer{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
   .file-hint{font-size:.78rem;color:var(--muted);margin-top:4px}
+  .file-hint.server-pack-hint{color:var(--grn);font-weight:600}
   .toast-stack{position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:10px;z-index:200}
   .toast{padding:12px 18px;border-radius:12px;font-size:.9rem;font-weight:500;box-shadow:var(--shadow);animation:toastIn .25s ease;max-width:360px;transition:opacity .4s}
   .toast-ok{background:#1e3518;border:1px solid var(--grn);color:#b7f49b}
@@ -157,7 +159,6 @@
       <div class="form-row"><label>Minecraft version</label><input id="iMcVer" class="input" placeholder="e.g. 1.20.1" readonly/></div>
       <div class="form-row"><label>Mod loader</label>
         <select id="iLoader" class="select">
-          <!-- Values must exactly match Crafty's download_jar catalog keys -->
           <option value="forge-installer">Forge</option>
           <option value="fabric-installer">Fabric</option>
           <option value="neoforge-installer">NeoForge</option>
@@ -168,12 +169,11 @@
       <div class="form-row"><label>Max RAM (MB)</label><input id="iMaxRam" class="input" type="number" value="6144" min="1024" step="512"/></div>
       <div class="form-row span2"><div class="form-divider">Select build / file</div></div>
       <div class="form-row span2">
-        <label>Available files <span class="faint" style="font-size:.78rem">(latest 50 shown, newest first)</span></label>
+        <label>Available files <span class="faint" style="font-size:.78rem">(server packs first, latest 50 shown)</span></label>
         <select id="iFile" class="select" onchange="onFileChange()" size="6" style="height:auto;border-radius:10px"></select>
         <div id="fileHint" class="file-hint"></div>
       </div>
     </div>
-    <!-- install progress bar (hidden until deploy starts) -->
     <div id="progressWrap" style="display:none">
       <div style="font-size:.82rem;color:var(--muted);margin-bottom:6px" id="progressLabel">Waiting for Crafty&hellip;</div>
       <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
@@ -191,12 +191,12 @@
 <div class="toast-stack" id="toastStack"></div>
 
 <script>
-/* ── state ── */
+/* -- state -- */
 let currentPage = 0;
-let activePack  = null;   // { id, name }
-let packFiles   = [];      // normalized file objects from backend
+let activePack  = null;
+let packFiles   = [];
 
-/* ── utils ── */
+/* -- utils -- */
 function toast(msg, type='info') {
   const t = document.createElement('div');
   t.className = `toast toast-${type}`;
@@ -210,7 +210,6 @@ async function api(path, opts = {}) {
   const r = await fetch(path, opts);
   const j = await r.json();
   if (!r.ok) throw new Error(j.detail || j.error || `HTTP ${r.status}`);
-  // Unwrap FastAPI data envelope when present
   return (j && typeof j === 'object' && 'data' in j) ? j.data : j;
 }
 
@@ -220,7 +219,7 @@ function setProgress(label, pct) {
   document.getElementById('progressBar').style.width = pct + '%';
 }
 
-/* ── status bar ── */
+/* -- status bar -- */
 async function loadConfig() {
   try {
     const c = await api('/api/config');
@@ -238,7 +237,7 @@ async function loadConfig() {
   }
 }
 
-/* ── server list ── */
+/* -- server list -- */
 async function loadServers() {
   const el = document.getElementById('serversList');
   el.innerHTML = '<div class="empty-state">Loading&hellip;</div>';
@@ -279,7 +278,7 @@ async function serverAction(id, action) {
   }
 }
 
-/* ── catalog ── */
+/* -- catalog -- */
 function renderSkeletons() {
   document.getElementById('catalogGrid').innerHTML = Array.from({length:8}).map(() =>
     `<div class="pack-card">
@@ -357,7 +356,7 @@ function changePage(dir) {
   document.getElementById('catalog').scrollTop = 0;
 }
 
-/* ── install modal ── */
+/* -- install modal -- */
 async function openInstall(id, name, summary) {
   activePack = { id, name };
   document.getElementById('modalTitle').textContent = `Install: ${name}`;
@@ -365,6 +364,7 @@ async function openInstall(id, name, summary) {
   document.getElementById('iName').value = name;
   document.getElementById('iFile').innerHTML = '<option disabled selected>Loading files&hellip;</option>';
   document.getElementById('fileHint').textContent = '';
+  document.getElementById('fileHint').className = 'file-hint';
   document.getElementById('progressWrap').style.display = 'none';
   document.getElementById('progressBar').style.width = '0%';
   document.getElementById('installBtn').disabled = false;
@@ -380,14 +380,24 @@ async function openInstall(id, name, summary) {
         '<option value="" disabled>No installable files found</option>';
       return;
     }
-    document.getElementById('iFile').innerHTML = packFiles.map(f =>
-      `<option value="${f.id}"
+
+    document.getElementById('iFile').innerHTML = packFiles.map(f => {
+      const serverTag = f._is_server_pack ? ' ⭐ [Server Pack]' : '';
+      return `<option value="${f.id}"
         data-mc="${f._mc_version || ''}"
-        data-loader="${f._loader || 'forge-installer'}">
-        ${f.displayName || f.fileName}${f._mc_version ? ' ['+f._mc_version+']' : ''}
-      </option>`
-    ).join('');
-    document.getElementById('iFile').selectedIndex = 0;
+        data-loader="${f._loader || 'forge-installer'}"
+        data-server="${f._is_server_pack ? '1' : '0'}">
+        ${f.displayName || f.fileName}${f._mc_version ? ' ['+f._mc_version+']' : ''}${serverTag}
+      </option>`;
+    }).join('');
+
+    // Auto-select the first server pack if one exists, otherwise index 0
+    const opts = document.getElementById('iFile').options;
+    let best = 0;
+    for (let i = 0; i < opts.length; i++) {
+      if (opts[i].dataset.server === '1') { best = i; break; }
+    }
+    document.getElementById('iFile').selectedIndex = best;
     onFileChange();
   } catch(e) {
     document.getElementById('iFile').innerHTML =
@@ -396,30 +406,35 @@ async function openInstall(id, name, summary) {
 }
 
 /**
- * Maps a raw mod loader string (from CurseForge metadata) to the exact key
- * Crafty's download_jar catalog expects.  All four loaders need the
- * "-installer" suffix — omitting it causes Crafty to store NULL in
- * servers.executable_update_url and return a 503.
+ * Maps a raw mod loader string to the exact Crafty catalog key.
+ * All loaders need the -installer suffix.
  */
 function _toCraftyLoader(raw) {
   const s = (raw || '').toLowerCase();
   if (s.includes('neo'))    return 'neoforge-installer';
   if (s.includes('fabric')) return 'fabric-installer';
   if (s.includes('quilt'))  return 'quilt-installer';
-  return 'forge-installer'; // default / plain "forge"
+  return 'forge-installer';
 }
 
 function onFileChange() {
   const sel = document.getElementById('iFile');
   const opt = sel.options[sel.selectedIndex];
   if (!opt || !opt.value) return;
-  const mc     = opt.dataset.mc     || '';
-  const loader = opt.dataset.loader || 'forge-installer';
+  const mc       = opt.dataset.mc     || '';
+  const loader   = opt.dataset.loader || 'forge-installer';
+  const isServer = opt.dataset.server === '1';
   if (mc) document.getElementById('iMcVer').value = mc;
-  // Map raw CurseForge loader name → Crafty catalog key
   const craftyLoader = _toCraftyLoader(loader);
   document.getElementById('iLoader').value = craftyLoader;
-  document.getElementById('fileHint').textContent = mc ? `MC ${mc} · ${craftyLoader}` : craftyLoader;
+  const hint = document.getElementById('fileHint');
+  if (isServer) {
+    hint.className   = 'file-hint server-pack-hint';
+    hint.textContent = `✅ Server Pack selected · MC ${mc} · ${craftyLoader}`;
+  } else {
+    hint.className   = 'file-hint';
+    hint.textContent = mc ? `MC ${mc} · ${craftyLoader}` : craftyLoader;
+  }
 }
 
 function closeModal() {
@@ -432,14 +447,14 @@ async function doInstall() {
   if (!fileId) { toast('Please select a file first.', 'err'); return; }
 
   const payload = {
-    server_name:     document.getElementById('iName').value.trim() || activePack.name,
-    mc_version:      document.getElementById('iMcVer').value.trim() || '1.20.1',
-    mod_loader:      document.getElementById('iLoader').value,
-    port:            Number(document.getElementById('iPort').value),
-    mem_min:         Number(document.getElementById('iMinRam').value),  // MB
-    mem_max:         Number(document.getElementById('iMaxRam').value),  // MB
-    mod_id:          activePack.id,
-    file_id:         fileId,
+    server_name: document.getElementById('iName').value.trim() || activePack.name,
+    mc_version:  document.getElementById('iMcVer').value.trim() || '1.20.1',
+    mod_loader:  document.getElementById('iLoader').value,
+    port:        Number(document.getElementById('iPort').value),
+    mem_min:     Number(document.getElementById('iMinRam').value),
+    mem_max:     Number(document.getElementById('iMaxRam').value),
+    mod_id:      activePack.id,
+    file_id:     fileId,
   };
 
   const btn = document.getElementById('installBtn');
@@ -474,13 +489,13 @@ async function doInstall() {
   }
 }
 
-/* ── keyboard shortcuts ── */
+/* -- keyboard shortcuts -- */
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeModal();
   if (e.key === 'Enter' && document.activeElement === document.getElementById('searchInput')) doSearch();
 });
 
-/* ── boot ── */
+/* -- boot -- */
 loadConfig();
 loadServers();
 doSearch();
