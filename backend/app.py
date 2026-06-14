@@ -30,11 +30,9 @@ if not CRAFTY_TOKEN:
 
 
 def _ch():
-    """Crafty auth headers — Bearer token."""
     return {"Authorization": f"Bearer {CRAFTY_TOKEN}", "Content-Type": "application/json"}
 
 def _cfh():
-    """CurseForge auth headers — x-api-key (lowercase, required by the API)."""
     return {"x-api-key": CF_KEY, "Accept": "application/json", "Content-Type": "application/json"}
 
 def _crafty(method, path, **kwargs):
@@ -44,30 +42,26 @@ def _crafty(method, path, **kwargs):
         r.raise_for_status()
         return r.json(), None
     except requests.exceptions.HTTPError:
-        return None, {"error": f"Crafty HTTP {r.status_code}", "detail": r.text[:400]}
+        logging.error("Crafty %s %s -> HTTP %d: %s", method, path, r.status_code, r.text[:600])
+        return None, {"error": f"Crafty HTTP {r.status_code}", "detail": r.text[:600]}
     except requests.exceptions.RequestException as e:
         return None, {"error": "Could not reach Crafty", "detail": str(e)}
 
 def _cf_get(path, **kwargs):
     if not CF_KEY:
         return None, {"error": "CurseForge API key not configured",
-                      "detail": "Set the CURSEFORGE_API_KEY environment variable and restart the container."}
+                      "detail": "Set the CURSEFORGE_API_KEY environment variable and restart."}
     url = f"{CF_BASE}{path}"
     try:
         r = requests.get(url, headers=_cfh(), timeout=15, **kwargs)
         if r.status_code == 403:
-            logging.error(
-                "CurseForge 403 on GET %s — key prefix: %s | response: %s",
-                path, CF_KEY[:6] if CF_KEY else "(empty)", r.text[:200]
-            )
+            logging.error("CurseForge 403 on GET %s — key prefix: %s | response: %s",
+                          path, CF_KEY[:6] if CF_KEY else "(empty)", r.text[:200])
             return None, {
                 "error": "CurseForge returned 403 Forbidden",
-                "detail": (
-                    "Your API key is invalid, expired, or was not sent correctly. "
-                    "Re-generate it at https://console.curseforge.com/ and update "
-                    "CURSEFORGE_API_KEY in your docker-compose.yml, then restart the container. "
-                    f"Raw response: {r.text[:200]}"
-                )
+                "detail": ("Your API key is invalid, expired, or was not sent correctly. "
+                           "Re-generate it at https://console.curseforge.com/ and update "
+                           f"CURSEFORGE_API_KEY in your docker-compose.yml. Raw: {r.text[:200]}")
             }
         r.raise_for_status()
         return r.json(), None
@@ -75,47 +69,32 @@ def _cf_get(path, **kwargs):
         return None, {"error": f"CurseForge HTTP {r.status_code}", "detail": r.text[:400]}
     except requests.exceptions.ConnectionError as e:
         logging.error("DNS/connection failure reaching api.curseforge.com: %s", e)
-        return None, {
-            "error": "Could not connect to api.curseforge.com",
-            "detail": (
-                "DNS resolution failed inside the container. "
-                "Make sure dns: [8.8.8.8, 1.1.1.1] is set in docker-compose.yml. "
-                f"Details: {str(e)}"
-            )
-        }
+        return None, {"error": "Could not connect to api.curseforge.com",
+                      "detail": f"DNS failure — add dns: [8.8.8.8] to docker-compose.yml. {e}"}
     except requests.exceptions.RequestException as e:
         return None, {"error": "Could not reach CurseForge", "detail": str(e)}
 
 def _cf_post(path, **kwargs):
     if not CF_KEY:
         return None, {"error": "CurseForge API key not configured",
-                      "detail": "Set the CURSEFORGE_API_KEY environment variable and restart the container."}
+                      "detail": "Set the CURSEFORGE_API_KEY environment variable and restart."}
     url = f"{CF_BASE}{path}"
     try:
         r = requests.post(url, headers=_cfh(), timeout=15, **kwargs)
         if r.status_code == 403:
-            logging.error(
-                "CurseForge 403 on POST %s — key prefix: %s | response: %s",
-                path, CF_KEY[:6] if CF_KEY else "(empty)", r.text[:200]
-            )
+            logging.error("CurseForge 403 on POST %s — key prefix: %s | response: %s",
+                          path, CF_KEY[:6] if CF_KEY else "(empty)", r.text[:200])
             return None, {
                 "error": "CurseForge returned 403 Forbidden",
-                "detail": (
-                    "Your API key is invalid or expired. "
-                    "Re-generate at https://console.curseforge.com/ and update CURSEFORGE_API_KEY. "
-                    f"Raw response: {r.text[:200]}"
-                )
+                "detail": f"Re-generate at https://console.curseforge.com/. Raw: {r.text[:200]}"
             }
         r.raise_for_status()
         return r.json(), None
     except requests.exceptions.HTTPError:
         return None, {"error": f"CurseForge HTTP {r.status_code}", "detail": r.text[:400]}
     except requests.exceptions.ConnectionError as e:
-        logging.error("DNS/connection failure reaching api.curseforge.com: %s", e)
-        return None, {
-            "error": "Could not connect to api.curseforge.com",
-            "detail": f"DNS failure inside container — add dns: [8.8.8.8] to docker-compose.yml. Details: {str(e)}"
-        }
+        return None, {"error": "Could not connect to api.curseforge.com",
+                      "detail": f"DNS failure — add dns: [8.8.8.8] to docker-compose.yml. {e}"}
     except requests.exceptions.RequestException as e:
         return None, {"error": "Could not reach CurseForge", "detail": str(e)}
 
@@ -127,13 +106,7 @@ def err(msg, detail="", code=500):
 
 
 def _cdn_url(file_id: int, file_name: str) -> str:
-    """
-    Build forgecdn.net fallback URL for files whose downloadUrl is null.
-    Format: /files/{first4}/{remaining_stripped_leading_zeros}/{fileName}
-    e.g. 6262770 → /files/6262/770/...
-         4567089 → /files/4567/89/...
-    """
-    fid = str(file_id)
+    fid   = str(file_id)
     part1 = fid[:4]
     part2 = str(int(fid[4:]))
     return f"https://edge.forgecdn.net/files/{part1}/{part2}/{file_name}"
@@ -160,10 +133,6 @@ def pick_mc_version(versions):
     return ""
 
 def enrich_files(files):
-    """
-    Add loader/version detection and resolve null downloadUrl via CDN fallback.
-    Server packs are sorted to the top.
-    """
     enriched = []
     for f in files:
         gv        = f.get("gameVersions", [])
@@ -195,14 +164,13 @@ def health():
         crafty_ok = e is None
 
     if CF_KEY:
-        # Lightweight check: fetch Minecraft game info (gameId=432)
         data, e = _cf_get("/games/432")
         cf_ok = e is None
         if e:
             logging.warning("CurseForge health check failed: %s — %s", e["error"], e.get("detail", ""))
 
     return jsonify({
-        "status": "ok",
+        "status":                  "ok",
         "crafty_reachable":        crafty_ok,
         "curseforge_reachable":    cf_ok,
         "curseforge_configured":   bool(CF_KEY),
@@ -247,27 +215,17 @@ def get_modpack(mod_id):
 
 @app.route("/api/modpacks/<int:mod_id>/files")
 def get_modpack_files(mod_id):
-    """
-    CurseForge often 403s on GET /mods/{id}/files for restricted packs.
-    Strategy:
-      1. Try GET /mods/{id}/files
-      2. Fall back to latestFiles from GET /mods/{id}
-      3. Fall back to POST /mods/files with IDs from latestFilesIndexes
-    If ALL strategies fail, return the real error — never silently return [].
-    """
     first_error = None
 
-    # Check distribution rights (informational only)
     mod_data, mod_err = _cf_get(f"/mods/{mod_id}")
-    mod = {}
     if mod_err:
         return err(mod_err["error"], mod_err.get("detail", ""), 502)
 
     mod = mod_data.get("data", {})
     if mod.get("allowModDistribution") is False:
-        logging.warning("Mod %d has allowModDistribution=false — using CDN fallback for download URLs", mod_id)
+        logging.warning("Mod %d has allowModDistribution=false — using CDN fallback", mod_id)
 
-    # Strategy 1: standard files endpoint
+    # Strategy 1
     data, e = _cf_get(f"/mods/{mod_id}/files", params={"pageSize": 50, "sortOrder": "desc"})
     if not e:
         files = data.get("data", [])
@@ -277,10 +235,10 @@ def get_modpack_files(mod_id):
         first_error = e
         logging.warning("Strategy 1 failed for mod %d: %s", mod_id, e["error"])
 
-    # Strategy 2: latestFiles from mod detail
+    # Strategy 2: latestFiles
     latest_files = mod.get("latestFiles", [])
     if latest_files:
-        logging.info("Strategy 2 (latestFiles) succeeded for mod %d (%d files)", mod_id, len(latest_files))
+        logging.info("Strategy 2 (latestFiles) for mod %d (%d files)", mod_id, len(latest_files))
         return ok(enrich_files(latest_files))
 
     # Strategy 3: POST /mods/files
@@ -291,15 +249,14 @@ def get_modpack_files(mod_id):
         if not batch_err:
             files = batch.get("data", [])
             if files:
-                logging.info("Strategy 3 (POST /mods/files) succeeded for mod %d", mod_id)
+                logging.info("Strategy 3 (POST /mods/files) for mod %d", mod_id)
                 return ok(enrich_files(files))
         else:
             first_error = first_error or batch_err
 
-    # All strategies exhausted — surface the real error
     if first_error:
         return err(first_error["error"], first_error.get("detail", ""), 502)
-    return ok([])  # pack genuinely has no files
+    return ok([])
 
 @app.route("/api/modpacks/<int:mod_id>/files/<int:file_id>/download-url")
 def get_download_url(mod_id, file_id):
@@ -316,11 +273,9 @@ def get_download_url(mod_id, file_id):
         if dl:
             return ok(dl)
         cdn = _cdn_url(file_id, f.get("fileName", "modpack.zip"))
-        logging.info("Resolved CDN fallback for file %d: %s", file_id, cdn)
         return ok(cdn)
 
-    final_err = e or fe
-    return err(final_err["error"], final_err.get("detail", ""), 502)
+    return err((e or fe)["error"], (e or fe).get("detail", ""), 502)
 
 
 # ── Crafty servers ────────────────────────────────────────────────────────────
@@ -357,14 +312,40 @@ def delete_server(server_id):
     if e: return err(e["error"], e["detail"], 502)
     return ok(data)
 
+
+# ── Crafty server creation ────────────────────────────────────────────────────
+#
+# Crafty v2 POST /api/v2/servers expects a FLAT payload:
+#
+#   {
+#     "name":              "My Server",
+#     "min_ram":           "2048M",
+#     "max_ram":           "4096M",
+#     "port":              25565,
+#     "server_ip":         "0.0.0.0",
+#     "server_jar_path":   "server.jar",          # relative exe name
+#     "executable":        "server.jar",
+#     "execution_command": "java -Xms{MIN}M -Xmx{MAX}M -jar server.jar",
+#     "type":              "forge",                # flat string, NOT nested
+#     "server_version":    "1.21.1",
+#     "create_type":       "url_import",
+#     "import_url":        "https://...",
+#     "agree_to_eula":     true
+#   }
+#
+# Fields the old code sent that Crafty rejects with 400:
+#   - "server_type": { ... }   (should be flat "type" + "server_version")
+#   - min_ram/max_ram as bare integers (must be strings with M suffix)
+# ─────────────────────────────────────────────────────────────────────────────
+
 @app.route("/api/servers/create", methods=["POST"])
 def create_server():
     body            = request.get_json(force=True, silent=True) or {}
     modpack_id      = body.get("modpack_id")
     modpack_file_id = body.get("modpack_file_id")
     server_name     = (body.get("server_name") or "Modpack Server").strip()
-    min_ram         = max(512,  int(body.get("min_ram", 1024)))
-    max_ram         = max(1024, int(body.get("max_ram", 4096)))
+    min_ram         = max(512,  int(body.get("min_ram",  1024)))
+    max_ram         = max(1024, int(body.get("max_ram",  4096)))
     port            = int(body.get("port", 25565))
     mc_version      = (body.get("mc_version") or "1.20.1").strip()
     modloader       = (body.get("modloader") or "forge").strip().lower()
@@ -372,6 +353,7 @@ def create_server():
     if modloader not in ("forge", "fabric", "neoforge", "quilt"):
         modloader = "forge"
 
+    # ── Resolve download URL ─────────────────────────────────────────────────
     download_url = ""
     if modpack_id and modpack_file_id:
         dl, e = _cf_get(f"/mods/{modpack_id}/files/{modpack_file_id}/download-url")
@@ -385,8 +367,7 @@ def create_server():
             download_url = f.get("downloadUrl") or ""
             if not download_url:
                 download_url = _cdn_url(modpack_file_id, f.get("fileName", "modpack.zip"))
-                logging.info("Using CDN fallback for server creation, file %d: %s",
-                             modpack_file_id, download_url)
+                logging.info("CDN fallback for file %d: %s", modpack_file_id, download_url)
 
     if not download_url:
         download_url = (body.get("download_url") or "").strip()
@@ -394,22 +375,37 @@ def create_server():
     if not download_url:
         return err("No download URL could be resolved for this modpack file.", code=400)
 
+    # ── Build the execution command Crafty expects ───────────────────────────
+    jar_name  = "server.jar"
+    exec_cmd  = (
+        f"java -Xms{min_ram}M -Xmx{max_ram}M "
+        "-XX:+UseG1GC -XX:+ParallelRefProcEnabled "
+        f"-jar {jar_name} nogui"
+    )
+
+    # ── Crafty v2 flat payload ───────────────────────────────────────────────
+    # min_ram / max_ram MUST be strings with M suffix, NOT bare integers.
     payload = {
-        "name":       server_name,
-        "min_ram":    str(min_ram),
-        "max_ram":    str(max_ram),
-        "port":       port,
-        "server_ip":  "0.0.0.0",
-        "server_type": {
-            "selection": modloader,
-            "version":   mc_version,
-        },
-        "create_type": "url_import",
-        "import_url":  download_url,
-        "agree_to_eula": True,
+        "name":              server_name,
+        "min_ram":           f"{min_ram}M",
+        "max_ram":           f"{max_ram}M",
+        "port":              port,
+        "server_ip":         "0.0.0.0",
+        "server_jar_path":   jar_name,
+        "executable":        jar_name,
+        "execution_command": exec_cmd,
+        "type":              modloader,        # flat string
+        "server_version":    mc_version,       # flat string
+        "create_type":       "url_import",
+        "import_url":        download_url,
+        "agree_to_eula":     True,
     }
-    logging.info("Creating Crafty server: %s loader=%s mc=%s url=%s",
-                 server_name, modloader, mc_version, download_url[:80])
+
+    logging.info(
+        "Creating Crafty server — name=%s type=%s mc=%s ram=%sM-%sM port=%d url=%s",
+        server_name, modloader, mc_version, min_ram, max_ram, port, download_url[:80]
+    )
+    logging.info("Crafty payload: %s", payload)
 
     data, e = _crafty("POST", "/api/v2/servers", json=payload)
     if e: return err(e["error"], e["detail"], 502)
