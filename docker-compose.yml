@@ -2,6 +2,7 @@ version: "3.8"
 
 services:
   crafty-modpack-manager:
+    image: ghcr.io/chargeyxd/crafty-modpack-manager:latest
     build: .
     container_name: crafty-modpack-manager
     restart: unless-stopped
