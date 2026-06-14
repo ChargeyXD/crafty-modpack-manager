@@ -17,9 +17,9 @@ services:
       # Crafty Controller base URL (LAN or Cloudflare tunnel hostname)
       - CRAFTY_URL=https://192.168.68.120:8443
       # Crafty API token — generate in Crafty → Settings → Users → API Keys
-      - CRAFTY_API_TOKEN=REPLACE_WITH_YOUR_CRAFTY_TOKEN
+      - CRAFTY_API_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJpYXQiOjE3ODE0MzEzNTgsInRva2VuX2lkIjoxfQ.erjtmcCAfm4Z5Q7OU5-hl6Ez7hpMzJaZ_q132A10iXA
       # CurseForge API key — generate at https://console.curseforge.com/
-      - CURSEFORGE_API_KEY=REPLACE_WITH_YOUR_CURSEFORGE_KEY
+      - CURSEFORGE_API_KEY=$2a$10$D3BoNR1P.FX4bw8ESyMWQuUTqdfRZSfbgZwQAX8xrbNUwyYOAXvsq
     dns:
       - 8.8.8.8
       - 1.1.1.1
