@@ -1,5 +1,3 @@
-version: "3.9"
-
 # ─────────────────────────────────────────────────────────────────────
 #  Crafty Modpack Manager — CasaOS-ready docker-compose
 #  Add to CasaOS via: App Store → Custom Install → paste this file
@@ -17,6 +15,9 @@ version: "3.9"
 services:
   crafty-modpack-manager:
     image: chargeyxd/crafty-modpack-manager:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: crafty-modpack-manager
     restart: unless-stopped
     ports:
