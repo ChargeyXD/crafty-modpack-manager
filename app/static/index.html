@@ -28,7 +28,6 @@ body{font-family:'Inter',sans-serif;min-height:100dvh}
 }
 body{background:var(--bg);color:var(--text)}
 
-/* Layout */
 .app{display:grid;grid-template-rows:56px 1fr;min-height:100dvh}
 .topbar{
   display:flex;align-items:center;gap:12px;padding:0 20px;
@@ -56,12 +55,13 @@ body{background:var(--bg);color:var(--text)}
 .btn-primary:active{opacity:0.85}
 .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text-muted)}
 .btn-ghost:hover{background:var(--surface-3);color:var(--text)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-danger:hover{opacity:.88}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 
 .main{display:grid;grid-template-columns:1fr 320px;overflow:hidden}
 @media(max-width:860px){.main{grid-template-columns:1fr}.sidebar{display:none}}
 
-/* Catalog */
 .catalog{padding:20px;overflow-y:auto;height:calc(100dvh - 56px)}
 .section-header{display:flex;align-items:center;gap:10px;margin-bottom:16px}
 .section-title{font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
@@ -99,7 +99,6 @@ body{background:var(--bg);color:var(--text)}
 
 .pagination{display:flex;align-items:center;gap:10px;margin-top:20px;justify-content:center;padding-bottom:20px}
 
-/* Skeleton */
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
 .skeleton{
   background:linear-gradient(90deg,var(--surface-3) 25%,var(--surface-2) 50%,var(--surface-3) 75%);
@@ -109,7 +108,6 @@ body{background:var(--bg);color:var(--text)}
 .skel-line{height:11px;margin:5px 0}
 .skel-line.w60{width:60%}
 
-/* Sidebar */
 .sidebar{
   border-left:1px solid var(--border);background:var(--surface);
   height:calc(100dvh - 56px);overflow-y:auto;padding:18px;
@@ -149,7 +147,7 @@ select.input{cursor:pointer}
 #toast.success{border-color:var(--accent)}
 #toast.error{border-color:var(--red)}
 
-/* Modal */
+/* File picker modal */
 .modal-bd{
   position:fixed;inset:0;background:rgba(0,0,0,0.7);
   display:flex;align-items:center;justify-content:center;
@@ -182,7 +180,66 @@ select.input{cursor:pointer}
 .file-meta{font-size:11px;color:var(--text-muted);white-space:nowrap}
 .modal-footer{display:flex;gap:8px;justify-content:flex-end;padding-top:4px}
 
-/* Server list overlay */
+/* ── Progress modal ─────────────────────────────────────────── */
+#progressBd{
+  position:fixed;inset:0;background:rgba(0,0,0,0.82);
+  display:flex;align-items:center;justify-content:center;
+  z-index:300;opacity:0;pointer-events:none;
+  transition:opacity 200ms
+}
+#progressBd.open{opacity:1;pointer-events:auto}
+#progressModal{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:28px;width:min(560px,96vw);
+  box-shadow:var(--shadow);transform:translateY(10px);
+  transition:transform 200ms;display:flex;flex-direction:column;gap:18px
+}
+#progressBd.open #progressModal{transform:translateY(0)}
+.prog-title{font-size:16px;font-weight:700}
+.prog-subtitle{font-size:12px;color:var(--text-muted);margin-top:2px}
+
+/* Step list */
+.steps{display:flex;flex-direction:column;gap:10px}
+.step-row{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 14px;border-radius:var(--radius);
+  background:var(--surface-2);border:1px solid var(--border);
+  transition:border-color 200ms,background 200ms
+}
+.step-row.active{border-color:var(--blue);background:rgba(56,139,253,0.07)}
+.step-row.done{border-color:var(--accent);background:var(--accent-dim)}
+.step-row.error{border-color:var(--red);background:rgba(248,81,73,0.08)}
+.step-icon{
+  width:28px;height:28px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface-3);font-size:13px
+}
+.step-row.active .step-icon{background:rgba(56,139,253,0.2);color:var(--blue)}
+.step-row.done .step-icon{background:var(--accent-dim);color:var(--accent-h)}
+.step-row.error .step-icon{background:rgba(248,81,73,0.2);color:var(--red)}
+.step-info{flex:1;min-width:0}
+.step-name{font-size:13px;font-weight:600}
+.step-msg{font-size:11.5px;color:var(--text-muted);margin-top:2px;line-height:1.4;word-break:break-word}
+
+/* Spinner */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{animation:spin .8s linear infinite}
+
+/* Log console */
+.log-box{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius);padding:10px 12px;
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  color:var(--text-muted);max-height:140px;overflow-y:auto;
+  line-height:1.6
+}
+.log-line{white-space:pre-wrap;word-break:break-all}
+.log-line.err{color:var(--red)}
+.log-line.ok{color:var(--accent-h)}
+
+.prog-footer{display:flex;gap:8px;justify-content:flex-end;padding-top:4px}
+
+/* Servers drawer */
 .drawer-bd{
   position:fixed;inset:0;background:rgba(0,0,0,0.7);
   display:flex;justify-content:flex-end;
@@ -307,6 +364,62 @@ select.input{cursor:pointer}
   </div>
 </div>
 
+<!-- Progress modal -->
+<div id="progressBd">
+  <div id="progressModal">
+    <div>
+      <div class="prog-title" id="progTitle">Deploying Server</div>
+      <div class="prog-subtitle" id="progSubtitle">This may take a few minutes for large modpacks.</div>
+    </div>
+    <div class="steps" id="steps">
+      <div class="step-row" id="s-create">
+        <div class="step-icon" id="si-create">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
+        </div>
+        <div class="step-info">
+          <div class="step-name">1 &ndash; Create server in Crafty</div>
+          <div class="step-msg" id="sm-create">Waiting...</div>
+        </div>
+      </div>
+      <div class="step-row" id="s-wait">
+        <div class="step-icon" id="si-wait">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <div class="step-info">
+          <div class="step-name">2 &ndash; Wait for mod loader install</div>
+          <div class="step-msg" id="sm-wait">Waiting...</div>
+        </div>
+      </div>
+      <div class="step-row" id="s-download">
+        <div class="step-icon" id="si-download">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </div>
+        <div class="step-info">
+          <div class="step-name">3 &ndash; Download modpack zip</div>
+          <div class="step-msg" id="sm-download">Waiting...</div>
+        </div>
+      </div>
+      <div class="step-row" id="s-extract">
+        <div class="step-icon" id="si-extract">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="step-info">
+          <div class="step-name">4 &ndash; Extract files to server</div>
+          <div class="step-msg" id="sm-extract">Waiting...</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-faint);margin-bottom:6px;font-family:'JetBrains Mono',monospace">LIVE LOG</div>
+      <div class="log-box" id="logBox"></div>
+    </div>
+    <div class="prog-footer">
+      <button class="btn btn-ghost" id="progClose" style="display:none">Close</button>
+      <button class="btn btn-danger" id="progDismissErr" style="display:none">Dismiss</button>
+    </div>
+  </div>
+</div>
+
 <!-- Servers drawer -->
 <div class="drawer-bd" id="drawerBd">
   <div class="drawer">
@@ -326,7 +439,7 @@ select.input{cursor:pointer}
   let currentPage=0,currentQuery='',selectedModpack=null,selectedFile=null;
   const PAGE_SIZE=20;
 
-  // Theme
+  // ── Theme ────────────────────────────────────────────────────────────────
   const themeBtn=document.getElementById('themeToggle');
   let theme='dark';
   const moonSVG='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
@@ -337,7 +450,7 @@ select.input{cursor:pointer}
     themeBtn.innerHTML=theme==='dark'?moonSVG:sunSVG;
   });
 
-  // Toast
+  // ── Toast ────────────────────────────────────────────────────────────────
   function toast(msg,type=''){
     const t=document.getElementById('toast');
     t.textContent=msg;t.className='show '+type;
@@ -345,10 +458,8 @@ select.input{cursor:pointer}
     t._tid=setTimeout(()=>t.className='',3500);
   }
 
-  // Escape HTML
   function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
-  // Skeletons
   function skels(n=12){return Array.from({length:n},()=>`
     <div class="card">
       <div class="skeleton skel-thumb"></div>
@@ -360,7 +471,6 @@ select.input{cursor:pointer}
       </div>
     </div>`).join('')}
 
-  // Loader guess from modpack metadata
   function guessLoader(name,cats){
     const s=(name+' '+cats).toLowerCase();
     if(s.includes('neoforge'))return 'neoforge';
@@ -369,7 +479,6 @@ select.input{cursor:pointer}
     if(s.includes('forge'))return 'forge-installer';
     return 'forge-installer';
   }
-
   function loaderLabel(l){
     return{forge:'Forge','forge-installer':'Forge',fabric:'Fabric',neoforge:'NeoForge',quilt:'Quilt',vanilla:'Vanilla'}[l]||l;
   }
@@ -433,7 +542,7 @@ select.input{cursor:pointer}
     }
   }
 
-  // File picker modal
+  // ── File picker modal ────────────────────────────────────────────────────
   async function openModal(modId,modName,loader,cardEl){
     const bd=document.getElementById('modalBd');
     const fl=document.getElementById('mFiles');
@@ -485,7 +594,7 @@ select.input{cursor:pointer}
       document.getElementById('deployBtn').disabled=false;
       document.getElementById('sidebarHint').textContent='Configure and deploy below.';
       const badge=document.getElementById('selectedBadge');
-      badge.textContent=modName.slice(0,48)+(modName.length>48?'…':'');
+      badge.textContent=modName.slice(0,48)+(modName.length>48?'\u2026':'');
       badge.classList.add('show');
       document.querySelectorAll('.card').forEach(c=>c.classList.remove('selected'));
       cardEl?.classList.add('selected');
@@ -495,38 +604,153 @@ select.input{cursor:pointer}
   document.getElementById('mCancel').addEventListener('click',()=>document.getElementById('modalBd').classList.remove('open'));
   document.getElementById('modalBd').addEventListener('click',e=>{if(e.target===document.getElementById('modalBd'))document.getElementById('modalBd').classList.remove('open')});
 
-  // Deploy
-  document.getElementById('deployBtn').addEventListener('click',async()=>{
-    const btn=document.getElementById('deployBtn');
-    const name=document.getElementById('serverName').value.trim();
-    const loader=document.getElementById('modLoaderSel').value;
-    const version=document.getElementById('mcVersionInput').value.trim();
-    const memMin=+document.getElementById('memMin').value;
-    const memMax=+document.getElementById('memMax').value;
-    const port=+document.getElementById('serverPort').value;
-    if(!name){toast('Server name is required','error');return;}
-    if(!version){toast('Minecraft version is required','error');return;}
-    if(memMin>memMax){toast('RAM Min cannot exceed RAM Max','error');return;}
-    btn.disabled=true;
-    btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9"/></svg> Deploying...';
-    try{
-      const r=await fetch('/api/deploy',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({server_name:name,mod_loader:loader,mc_version:version,mem_min:memMin,mem_max:memMax,port})
+  // ── Progress modal helpers ───────────────────────────────────────────────
+  const STEP_ICONS = {
+    idle: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>',
+    active: '<svg class="spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9"/></svg>',
+    done: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>',
+    error: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  };
+
+  function setStep(step, status, msg) {
+    const row = document.getElementById('s-' + step);
+    const icon = document.getElementById('si-' + step);
+    const msgEl = document.getElementById('sm-' + step);
+    if (!row) return;
+    row.className = 'step-row ' + (status || '');
+    icon.innerHTML = STEP_ICONS[status] || STEP_ICONS.idle;
+    if (msg) msgEl.textContent = msg;
+  }
+
+  function addLog(msg, cls) {
+    const box = document.getElementById('logBox');
+    const line = document.createElement('div');
+    line.className = 'log-line' + (cls ? ' ' + cls : '');
+    line.textContent = msg;
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function openProgress(serverName) {
+    // Reset all steps
+    ['create','wait','download','extract'].forEach(s => setStep(s, '', 'Waiting...'));
+    document.getElementById('logBox').innerHTML = '';
+    document.getElementById('progTitle').textContent = 'Deploying: ' + serverName;
+    document.getElementById('progSubtitle').textContent = 'This may take a few minutes for large modpacks.';
+    document.getElementById('progClose').style.display = 'none';
+    document.getElementById('progDismissErr').style.display = 'none';
+    document.getElementById('progressBd').classList.add('open');
+  }
+
+  function finishProgress(success, summary) {
+    document.getElementById('progSubtitle').textContent = summary;
+    if (success) {
+      document.getElementById('progClose').style.display = '';
+    } else {
+      document.getElementById('progDismissErr').style.display = '';
+    }
+  }
+
+  document.getElementById('progClose').addEventListener('click', () => {
+    document.getElementById('progressBd').classList.remove('open');
+  });
+  document.getElementById('progDismissErr').addEventListener('click', () => {
+    document.getElementById('progressBd').classList.remove('open');
+  });
+
+  // ── Deploy ───────────────────────────────────────────────────────────────
+  document.getElementById('deployBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('deployBtn');
+    const name = document.getElementById('serverName').value.trim();
+    const loader = document.getElementById('modLoaderSel').value;
+    const version = document.getElementById('mcVersionInput').value.trim();
+    const memMin = +document.getElementById('memMin').value;
+    const memMax = +document.getElementById('memMax').value;
+    const port = +document.getElementById('serverPort').value;
+
+    if (!name) { toast('Server name is required', 'error'); return; }
+    if (!version) { toast('Minecraft version is required', 'error'); return; }
+    if (memMin > memMax) { toast('RAM Min cannot exceed RAM Max', 'error'); return; }
+
+    btn.disabled = true;
+    openProgress(name);
+
+    // ── BUG FIX: include mod_id and file_id so the backend can install the modpack
+    const body = {
+      server_name: name,
+      mod_loader: loader,
+      mc_version: version,
+      mem_min: memMin,
+      mem_max: memMax,
+      port,
+      mod_id: selectedModpack?.modId ?? null,
+      file_id: selectedFile?.fileId ?? null,
+    };
+
+    addLog('POST /api/deploy ' + JSON.stringify({mod_id: body.mod_id, file_id: body.file_id}));
+
+    try {
+      const resp = await fetch('/api/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
-      if(!r.ok){const e=await r.json();throw new Error(e.detail||r.statusText);}
-      toast(`✓ "${name}" created in Crafty!`,'success');
-      btn.disabled=true;
-    }catch(e){
-      toast('Deploy failed: '+e.message,'error');
-      btn.disabled=false;
-    }finally{
-      btn.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg> Deploy to Crafty';
+
+      // /api/deploy now returns an SSE stream
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n\n');
+        buf = lines.pop(); // keep incomplete last chunk
+        for (const chunk of lines) {
+          const dataLine = chunk.split('\n').find(l => l.startsWith('data:'));
+          if (!dataLine) continue;
+          let ev;
+          try { ev = JSON.parse(dataLine.slice(5).trim()); } catch { continue; }
+
+          if (ev.event === 'step') {
+            setStep(ev.step, ev.status, ev.msg);
+            addLog('[' + ev.step + '] ' + ev.msg, ev.status === 'done' ? 'ok' : '');
+          } else if (ev.event === 'log') {
+            addLog(ev.msg);
+          } else if (ev.event === 'error') {
+            setStep(ev.step, 'error', ev.msg);
+            addLog('ERROR [' + (ev.step||'?') + ']: ' + ev.msg, 'err');
+            finishProgress(false, '\u2717 Deploy failed — see log above for details.');
+            btn.disabled = false;
+            return;
+          } else if (ev.event === 'done') {
+            // Mark remaining steps done if modpack wasn't selected
+            if (!ev.modpack_installed) {
+              setStep('download', 'done', 'Skipped (no modpack selected)');
+              setStep('extract', 'done', 'Skipped (no modpack selected)');
+            } else {
+              setStep('extract', 'done', ev.msg);
+            }
+            addLog(ev.msg, 'ok');
+            finishProgress(true, ev.modpack_installed
+              ? `\u2713 Done! ${ev.files_extracted} modpack files installed into Crafty.`
+              : '\u2713 Server created (no modpack).');
+            toast('\u2713 "' + name + '" deployed!', 'success');
+          }
+        }
+      }
+    } catch (e) {
+      addLog('Fatal: ' + e.message, 'err');
+      finishProgress(false, '\u2717 Unexpected error — see log.');
+      toast('Deploy error: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg> Deploy to Crafty';
     }
   });
 
-  // Search
+  // ── Search ───────────────────────────────────────────────────────────────
   document.getElementById('searchBtn').addEventListener('click',()=>{
     currentQuery=document.getElementById('searchInput').value.trim();
     currentPage=0;loadModpacks(currentQuery,0);
@@ -535,7 +759,7 @@ select.input{cursor:pointer}
     if(e.key==='Enter')document.getElementById('searchBtn').click();
   });
 
-  // Servers drawer
+  // ── Servers drawer ───────────────────────────────────────────────────────
   document.getElementById('serversBtn').addEventListener('click',async()=>{
     const bd=document.getElementById('drawerBd');
     const sl=document.getElementById('serverList');
