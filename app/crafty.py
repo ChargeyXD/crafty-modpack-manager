@@ -27,6 +27,8 @@ even though the body is valid JSON.
 """
 import asyncio
 import json
+import os
+import pathlib
 import httpx
 from app.config import CRAFTY_URL, CRAFTY_TOKEN, CRAFTY_VERIFY_SSL
 
@@ -35,6 +37,15 @@ from app.config import CRAFTY_URL, CRAFTY_TOKEN, CRAFTY_VERIFY_SSL
 # this increased, but 300 s is enough for almost all forge/neoforge installs.
 READY_TIMEOUT = 300
 POLL_INTERVAL = 5
+
+# Root of Crafty servers dir as seen inside this container.
+CRAFTY_SERVERS_ROOT = os.environ.get("CRAFTY_SERVERS_ROOT", "/crafty-servers")
+
+# Minimum number of files that must exist in a server dir before we
+# consider it "ready" for modpack injection.  A fully initialised
+# Crafty server directory always has at least: the server jar, eula.txt,
+# and server.properties — so 3 is a safe lower bound.
+_MIN_FILES_READY = 3
 
 
 def _headers() -> dict:
@@ -64,28 +75,67 @@ async def get_server(server_id: str) -> dict:
         return r.json()
 
 
-async def poll_server_ready(server_id: str) -> dict:
-    """Poll GET /api/v2/servers/{id} until Crafty marks the server as *stopped*
-    (meaning the jar-download / installer run has completed) or until
-    READY_TIMEOUT seconds have elapsed.
+def _server_dir_ready(server_dir: pathlib.Path) -> bool:
+    """Return True when the server directory exists on disk AND contains
+    enough files to indicate Crafty has finished its initial setup.
 
-    Returns the final server dict on success, raises TimeoutError otherwise.
+    We check the filesystem directly (via the shared volume mount) rather
+    than trusting the Crafty API alone, because:
+      - Crafty sets path= and running=False immediately after creating the DB
+        record, BEFORE the jar download has finished.
+      - The only reliable signal that setup is truly complete is the presence
+        of the server jar and supporting files on disk.
+    """
+    if not server_dir.exists():
+        return False
+    files = list(server_dir.rglob("*"))
+    file_count = sum(1 for f in files if f.is_file())
+    return file_count >= _MIN_FILES_READY
+
+
+async def poll_server_ready(server_id: str) -> dict:
+    """Poll until the server directory on disk is fully populated by Crafty.
+
+    Strategy (dual-check for maximum reliability):
+      1. Ask Crafty API for the server's path field.
+      2. Check that path on the shared volume for >= _MIN_FILES_READY files.
+
+    Both conditions must be true before we proceed to modpack injection.
+    Raises TimeoutError if READY_TIMEOUT seconds elapse without success.
     """
     elapsed = 0
+    last_path = ""
+
     while elapsed < READY_TIMEOUT:
-        data = await get_server(server_id)
-        # Crafty stores running state in data["data"]["running"]; after setup
-        # the server is not running yet, and the server path is populated.
+        try:
+            data = await get_server(server_id)
+        except Exception:
+            # Crafty may be briefly busy right after creation — keep polling
+            await asyncio.sleep(POLL_INTERVAL)
+            elapsed += POLL_INTERVAL
+            continue
+
         server = data.get("data", {})
-        path = server.get("path", "")
-        # Consider ready when Crafty has written the server directory path and
-        # the server is in a stopped (not "Downloading") state.
-        if path and not server.get("running", False):
-            return server
+        crafty_path = server.get("path", "") or ""
+
+        if crafty_path:
+            last_path = crafty_path
+            # Derive the UID component from the path Crafty reports
+            uid_part = pathlib.Path(crafty_path).name
+            server_dir = pathlib.Path(CRAFTY_SERVERS_ROOT) / uid_part
+
+            if _server_dir_ready(server_dir):
+                # Augment the server dict so the caller has the resolved dir
+                server["_resolved_dir"] = str(server_dir)
+                return server
+
         await asyncio.sleep(POLL_INTERVAL)
         elapsed += POLL_INTERVAL
+
     raise TimeoutError(
-        f"Server {server_id} did not become ready within {READY_TIMEOUT}s"
+        f"Server {server_id} directory was not ready within {READY_TIMEOUT}s "
+        f"(last reported path: {last_path!r}). "
+        "Check the CRAFTY_SERVERS_ROOT volume mount in docker-compose.yml."
     )
 
 
