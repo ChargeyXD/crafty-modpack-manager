@@ -2,23 +2,25 @@ version: "3.8"
 
 services:
   crafty-modpack-manager:
-    image: ghcr.io/chargeyxd/crafty-modpack-manager:latest
     build: .
     container_name: crafty-modpack-manager
     restart: unless-stopped
     ports:
       - "7800:7800"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
-      # ── Required ─────────────────────────────────────────────────────────────
-      # CurseForge API key — https://console.curseforge.com
+      # ── Required ──────────────────────────────────────────────────────────
+      # CurseForge API key — get free key at https://console.curseforge.com
       - CURSEFORGE_API_KEY=
       # Crafty JWT token — Crafty UI ▸ Settings ▸ API Tokens
       - CRAFTY_TOKEN=
-      # Crafty base URL (LAN IP or Cloudflare tunnel)
+      # Crafty base URL (LAN IP or Cloudflare tunnel hostname)
       - CRAFTY_URL=https://192.168.68.120:8443
 
-      # ── Optional (defaults shown) ─────────────────────────────────────────
-      # Set to "false" when Crafty uses a self-signed TLS cert (default for local)
+      # ── Optional (defaults shown) ──────────────────────────────────────
+      # Set to false when Crafty uses a self-signed TLS cert (default for local installs)
       - CRAFTY_VERIFY_SSL=false
       # Default RAM allocated to new servers (GB)
       - DEFAULT_MEM_MIN=2
@@ -53,7 +55,7 @@ x-casaos:
   tips:
     before_install:
       en_us: |
-        Fill in these 3 environment variables before installing:
-        • CURSEFORGE_API_KEY — get free key at https://console.curseforge.com
+        Fill in these 2 required environment variables before installing:
+        • CURSEFORGE_API_KEY — free key at https://console.curseforge.com
         • CRAFTY_TOKEN       — Crafty UI ▸ Settings ▸ API Tokens
-        • CRAFTY_URL         — your Crafty address e.g. https://192.168.68.120:8443
+        CRAFTY_URL defaults to https://192.168.68.120:8443 — change if yours differs.

@@ -23,22 +23,25 @@ from a live Crafty UI HAR trace (HTTP 201 Created confirmed):
   }
 
 Crafty requires Content-Type: text/plain (not application/json)
-even though the body is valid JSON — this matches browser behaviour.
+even though the body is valid JSON.
 """
 import json
 import httpx
 from app.config import CRAFTY_URL, CRAFTY_TOKEN, CRAFTY_VERIFY_SSL
 
-_HEADERS = {
-    "Authorization": f"Bearer {CRAFTY_TOKEN}",
-    "Content-Type": "text/plain; charset=UTF-8",
-    "Accept": "application/json",
-}
+
+def _headers() -> dict:
+    """Build headers at call-time so a token set after import is picked up."""
+    return {
+        "Authorization": f"Bearer {CRAFTY_TOKEN}",
+        "Content-Type": "text/plain; charset=UTF-8",
+        "Accept": "application/json",
+    }
 
 
 async def list_servers() -> dict:
     async with httpx.AsyncClient(verify=CRAFTY_VERIFY_SSL, timeout=10) as c:
-        r = await c.get(f"{CRAFTY_URL}/api/v2/servers", headers=_HEADERS)
+        r = await c.get(f"{CRAFTY_URL}/api/v2/servers", headers=_headers())
         r.raise_for_status()
         return r.json()
 
@@ -72,7 +75,7 @@ async def create_server(
     async with httpx.AsyncClient(verify=CRAFTY_VERIFY_SSL, timeout=60) as c:
         r = await c.post(
             f"{CRAFTY_URL}/api/v2/servers",
-            headers=_HEADERS,
+            headers=_headers(),
             content=json.dumps(payload),
         )
         r.raise_for_status()

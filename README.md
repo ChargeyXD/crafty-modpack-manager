@@ -1,108 +1,70 @@
 # Crafty Modpack Manager
 
-> Browse CurseForge Minecraft modpacks and deploy them as Crafty Controller servers — self-hosted, Shockbyte-style.
+A self-hosted CasaOS app that lets you browse CurseForge Minecraft modpacks and deploy them as Crafty Controller server instances — like Shockbyte, but running on your own hardware.
 
-## Quick Install on CasaOS
+## Requirements
 
-1. **CasaOS → App Store → Custom Install**
-2. Paste the `docker-compose.yml` from this repo
-3. Fill in the three required environment variables (see table below)
-4. Click **Install** — opens at `http://<your-ip>:7800`
+- [CasaOS](https://casaos.io) running on your server
+- [Crafty Controller](https://craftycontrol.com) installed and accessible
+- A free [CurseForge API key](https://console.curseforge.com)
 
----
+## Quick Install (CasaOS)
 
-## Environment Variables
+1. In CasaOS, go to **App Store → Custom Install**
+2. Paste the raw URL of `docker-compose.yml` from this repo
+3. Fill in the two required environment variables before confirming:
+   - `CURSEFORGE_API_KEY` — from https://console.curseforge.com
+   - `CRAFTY_TOKEN` — Crafty UI ▸ Settings ▸ API Tokens
+4. `CRAFTY_URL` defaults to `https://192.168.68.120:8443` — change if your Crafty is elsewhere
+5. Click Install. The UI is available on **port 7800**.
 
-All configuration is done through environment variables in `docker-compose.yml`. **No `.env` file is used** — secrets are injected by CasaOS/Docker at runtime.
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `CURSEFORGE_API_KEY` | ✅ | — | Free key from [console.curseforge.com](https://console.curseforge.com) |
-| `CRAFTY_TOKEN` | ✅ | — | Crafty JWT — Settings ▸ API Tokens |
-| `CRAFTY_URL` | ✅ | — | e.g. `https://192.168.68.120:8443` |
-| `CRAFTY_VERIFY_SSL` | ❌ | `false` | Set `true` if Crafty has a valid TLS cert |
-| `DEFAULT_MEM_MIN` | ❌ | `2` | Default min RAM (GB) for new servers |
-| `DEFAULT_MEM_MAX` | ❌ | `6` | Default max RAM (GB) for new servers |
-| `BASE_SERVER_PORT` | ❌ | `25565` | Default Minecraft port |
-
-### Where to find your Crafty token
-
-1. Open Crafty Controller UI
-2. Navigate to **Settings → API Tokens**
-3. Create a new token — it needs **Server Create** permission
-4. Copy the JWT value into `CRAFTY_TOKEN`
-
----
-
-## How the Deploy Works
-
-The deploy button sends the exact payload the Crafty UI itself sends (verified from network capture, HTTP 201 confirmed):
-
-```json
-{
-  "name": "My Server",
-  "roles": [],
-  "monitoring_type": "minecraft_java",
-  "minecraft_java_monitoring_data": { "host": "127.0.0.1", "port": 25565 },
-  "create_type": "minecraft_java",
-  "minecraft_java_create_data": {
-    "create_type": "download_jar",
-    "download_jar_create_data": {
-      "category": "mc_java_servers",
-      "type": "forge-installer",
-      "version": "1.20.1",
-      "mem_min": 6,
-      "mem_max": 6,
-      "server_properties_port": 25565
-    }
-  }
-}
-```
-
-Crafty requires `Content-Type: text/plain` (not `application/json`) even though the body is JSON — this matches what the browser sends.
-
----
-
-## Build & Run Locally
+## Manual Docker Install
 
 ```bash
 git clone https://github.com/ChargeyXD/crafty-modpack-manager
 cd crafty-modpack-manager
 
-# Set secrets as real environment variables — no .env needed
-export CURSEFORGE_API_KEY=your_key
-export CRAFTY_TOKEN=your_crafty_jwt
-export CRAFTY_URL=https://192.168.68.120:8443
-export CRAFTY_VERIFY_SSL=false
-
-docker compose up --build
-# Open http://localhost:7800
+# Edit docker-compose.yml and fill in CURSEFORGE_API_KEY, CRAFTY_TOKEN, CRAFTY_URL
+docker compose up -d --build
 ```
 
----
+Then open http://192.168.68.120:7800
 
-## Supported Mod Loaders
+## Environment Variables
 
-| Loader | `type` value sent to Crafty |
-|---|---|
-| Forge | `forge-installer` |
-| Fabric | `fabric` |
-| NeoForge | `neoforge` |
-| Quilt | `quilt` |
-| Vanilla | `vanilla` |
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `CURSEFORGE_API_KEY` | ✅ | — | Free key from https://console.curseforge.com |
+| `CRAFTY_TOKEN` | ✅ | — | JWT from Crafty UI ▸ Settings ▸ API Tokens |
+| `CRAFTY_URL` | — | `https://192.168.68.120:8443` | Crafty base URL |
+| `CRAFTY_VERIFY_SSL` | — | `false` | Set `true` if Crafty has a valid cert |
+| `DEFAULT_MEM_MIN` | — | `2` | Default min RAM for new servers (GB) |
+| `DEFAULT_MEM_MAX` | — | `6` | Default max RAM for new servers (GB) |
+| `BASE_SERVER_PORT` | — | `25565` | Default Minecraft port |
 
-## Project Structure
+## How It Works
+
+1. **Search** CurseForge for any Minecraft modpack
+2. **Pick a version** from the file list modal
+3. **Configure** server name, RAM, port
+4. **Deploy** — the app calls Crafty's API to create and start the server
+
+## Architecture
 
 ```
-crafty-modpack-manager/
-├── Dockerfile
-├── docker-compose.yml       ← CasaOS-ready (x-casaos metadata included)
-├── requirements.txt
-└── app/
-    ├── config.py            ← reads env vars, fails fast if missing
-    ├── curseforge.py        ← CurseForge API v1 client
-    ├── crafty.py            ← Crafty API v2 client (exact HAR schema)
-    ├── main.py              ← FastAPI routes + /health endpoint
-    └── static/
-        └── index.html       ← full UI (search, file picker, deploy panel)
+browser → FastAPI (port 7800) → CurseForge API (modpack data)
+                              → Crafty API     (server creation)
 ```
+
+All configuration is done via environment variables in `docker-compose.yml`. No `.env` file is needed or used.
+
+## Troubleshooting
+
+**403 Forbidden from CurseForge**  
+Your `CURSEFORGE_API_KEY` is missing or invalid. Generate a new one at https://console.curseforge.com and update `docker-compose.yml`, then `docker compose up -d`.
+
+**Cannot reach Crafty**  
+Check that `CRAFTY_URL` matches your Crafty address and `CRAFTY_VERIFY_SSL=false` is set if you're using Crafty's default self-signed certificate.
+
+**DNS issues inside container**  
+The compose file includes `dns: [8.8.8.8, 1.1.1.1]` to ensure `api.curseforge.com` resolves inside the container on networks with restrictive DNS.
