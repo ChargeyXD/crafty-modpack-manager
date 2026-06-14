@@ -11,6 +11,12 @@ services:
     dns:
       - 8.8.8.8
       - 1.1.1.1
+    volumes:
+      # Mount Crafty's server data directory so this container can write
+      # modpack files directly into newly-created server instances.
+      # Host path:      /DATA/AppData/big-bear-crafty/data/servers
+      # Container path: /crafty-servers  (read by CRAFTY_SERVERS_ROOT below)
+      - /DATA/AppData/big-bear-crafty/data/servers:/crafty-servers
     environment:
       # ── Required ──────────────────────────────────────────────────────────
       # CurseForge API key — get free key at https://console.curseforge.com
@@ -28,6 +34,9 @@ services:
       - DEFAULT_MEM_MAX=6
       # Starting port for new Minecraft servers
       - BASE_SERVER_PORT=25565
+      # Path inside THIS container where Crafty server dirs are visible.
+      # Only change this if you mount the volume to a different path.
+      - CRAFTY_SERVERS_ROOT=/crafty-servers
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7800/health')"]
       interval: 30s
@@ -60,3 +69,5 @@ x-casaos:
         • CURSEFORGE_API_KEY — free key at https://console.curseforge.com
         • CRAFTY_TOKEN       — Crafty UI ▸ Settings ▸ API Tokens
         CRAFTY_URL defaults to https://192.168.68.120:8443 — change if yours differs.
+        A volume mount is pre-configured to /DATA/AppData/big-bear-crafty/data/servers
+        so modpack files are written directly into your Crafty server instances.
