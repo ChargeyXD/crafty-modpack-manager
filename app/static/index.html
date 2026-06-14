@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crafty Modpack Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Tokens ──────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; min-height: 100dvh; }
+
+:root, [data-theme="dark"] {
+  --bg:          #0f1117;
+  --surface:     #161b22;
+  --surface-2:   #1c2128;
+  --surface-3:   #21262d;
+  --border:      rgba(255,255,255,0.08);
+  --text:        #e6edf3;
+  --text-muted:  #8b949e;
+  --text-faint:  #484f58;
+  --accent:      #2ea043;
+  --accent-h:    #3fb950;
+  --accent-dim:  rgba(46,160,67,0.15);
+  --red:         #da3633;
+  --gold:        #d29922;
+  --blue:        #388bfd;
+  --radius:      8px;
+  --radius-lg:   12px;
+  --shadow:      0 4px 16px rgba(0,0,0,0.4);
+}
+[data-theme="light"] {
+  --bg:          #f6f8fa;
+  --surface:     #ffffff;
+  --surface-2:   #f6f8fa;
+  --surface-3:   #eaeef2;
+  --border:      rgba(0,0,0,0.1);
+  --text:        #24292f;
+  --text-muted:  #57606a;
+  --text-faint:  #8c959f;
+  --accent:      #1a7f37;
+  --accent-h:    #2ea043;
+  --accent-dim:  rgba(26,127,55,0.12);
+  --shadow:      0 4px 16px rgba(0,0,0,0.08);
+}
+body { background: var(--bg); color: var(--text); }
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.app { display: grid; grid-template-rows: 56px 1fr; min-height: 100dvh; }
+.topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 20px; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+.logo svg { color: var(--accent); }
+.spacer { flex: 1; }
+.search-wrap { display: flex; align-items: center; gap: 8px; flex: 1; max-width: 400px; }
+.search-input {
+  width: 100%; padding: 7px 12px; border-radius: var(--radius);
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text); font-size: 13px; outline: none;
+  transition: border-color 180ms;
+}
+.search-input:focus { border-color: var(--accent); }
+.btn {
+  padding: 7px 14px; border-radius: var(--radius); font-size: 13px;
+  font-weight: 500; cursor: pointer; border: none; transition: background 150ms, opacity 150ms;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-h); }
+.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
+.btn-ghost:hover { background: var(--surface-3); color: var(--text); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.main { display: grid; grid-template-columns: 1fr 340px; gap: 0; overflow: hidden; }
+@media (max-width: 900px) { .main { grid-template-columns: 1fr; } .sidebar { display: none; } }
+
+/* ── Modpack Grid ────────────────────────────────────────────────────────── */
+.catalog { padding: 20px; overflow-y: auto; height: calc(100dvh - 56px); }
+.section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.section-title { font-size: 14px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.result-count { font-size: 12px; color: var(--text-faint); }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+  gap: 14px;
+}
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden; cursor: pointer;
+  transition: transform 150ms, box-shadow 150ms, border-color 150ms;
+  display: flex; flex-direction: column;
+}
+.card:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: rgba(255,255,255,0.16); }
+.card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.card-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: var(--surface-3); }
+.card-thumb-placeholder { width: 100%; aspect-ratio: 16/9; background: var(--surface-3); display: flex; align-items: center; justify-content: center; color: var(--text-faint); }
+.card-body { padding: 12px; flex: 1; }
+.card-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
+.card-author { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
+.card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-footer { padding: 8px 12px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+.tag { font-size: 11px; padding: 2px 7px; border-radius: 99px; background: var(--surface-3); color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+.tag-green { background: var(--accent-dim); color: var(--accent-h); }
+
+.pagination { display: flex; align-items: center; gap: 10px; margin-top: 20px; justify-content: center; }
+
+/* ── Skeleton ────────────────────────────────────────────────────────────── */
+@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-3) 25%, var(--surface-2) 50%, var(--surface-3) 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 4px;
+}
+.skel-thumb { width: 100%; aspect-ratio: 16/9; }
+.skel-line { height: 12px; margin: 6px 0; }
+.skel-line.w60 { width: 60%; }
+
+/* ── Sidebar / Deploy Panel ──────────────────────────────────────────────── */
+.sidebar {
+  border-left: 1px solid var(--border); background: var(--surface);
+  height: calc(100dvh - 56px); overflow-y: auto; padding: 20px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.panel-title { font-size: 13px; font-weight: 700; color: var(--text); }
+.panel-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+.label { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.input {
+  padding: 8px 10px; border-radius: var(--radius); background: var(--surface-2);
+  border: 1px solid var(--border); color: var(--text); font-size: 13px; outline: none;
+  font-family: inherit; transition: border-color 150ms;
+}
+.input:focus { border-color: var(--accent); }
+select.input { cursor: pointer; }
+
+.deploy-btn { margin-top: auto; width: 100%; padding: 10px; font-size: 14px; font-weight: 600; justify-content: center; }
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 60px 20px; color: var(--text-muted); gap: 10px;
+  height: 100%;
+}
+.empty-state svg { color: var(--text-faint); }
+.empty-state p { font-size: 13px; max-width: 28ch; }
+
+/* ── Toast ───────────────────────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 20px; right: 20px; z-index: 999;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text); padding: 12px 18px; border-radius: var(--radius-lg);
+  font-size: 13px; box-shadow: var(--shadow);
+  opacity: 0; transform: translateY(8px); transition: opacity 200ms, transform 200ms;
+  pointer-events: none; max-width: 320px;
+}
+#toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+#toast.success { border-color: var(--accent); }
+#toast.error { border-color: var(--red); }
+
+/* ── Modal ───────────────────────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 200; opacity: 0; pointer-events: none; transition: opacity 200ms;
+}
+.modal-backdrop.open { opacity: 1; pointer-events: auto; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 24px; width: min(460px, 94vw);
+  box-shadow: var(--shadow); transform: scale(0.97); transition: transform 200ms;
+}
+.modal-backdrop.open .modal { transform: scale(1); }
+.modal-header { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+.modal-thumb { width: 64px; height: 64px; border-radius: var(--radius); object-fit: cover; background: var(--surface-3); flex-shrink: 0; }
+.modal-title { font-size: 16px; font-weight: 700; }
+.modal-author { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.modal-files { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
+.file-row {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  cursor: pointer; transition: border-color 150ms, background 150ms;
+}
+.file-row:hover { background: var(--surface-2); }
+.file-row.selected { border-color: var(--accent); background: var(--accent-dim); }
+.file-name { font-size: 12px; font-family: 'JetBrains Mono', monospace; flex: 1; }
+.file-meta { font-size: 11px; color: var(--text-muted); }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+        <path d="M7 8l2 2-2 2M11 10h3"/>
+      </svg>
+      Crafty Modpacks
+    </div>
+    <div class="search-wrap">
+      <input id="searchInput" class="search-input" type="search" placeholder="Search modpacks..." autocomplete="off">
+      <button class="btn btn-ghost" id="searchBtn">Search</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn btn-ghost" id="serversBtn" title="View Crafty servers">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1" fill="currentColor"/><circle cx="6" cy="18" r="1" fill="currentColor"/></svg>
+      Servers
+    </button>
+    <button class="btn btn-ghost" id="themeToggle" data-theme-toggle aria-label="Toggle theme">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </header>
+
+  <div class="main">
+    <!-- Catalog -->
+    <main class="catalog" id="catalog">
+      <div class="section-header">
+        <span class="section-title">Modpacks</span>
+        <span class="result-count" id="resultCount"></span>
+      </div>
+      <div class="grid" id="grid"></div>
+      <div class="pagination" id="pagination"></div>
+    </main>
+
+    <!-- Sidebar Deploy Panel -->
+    <aside class="sidebar">
+      <div>
+        <div class="panel-title">Deploy Server</div>
+        <div class="panel-subtitle" id="sidebarHint">Select a modpack to configure</div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="field">
+        <label class="label" for="serverName">Server Name</label>
+        <input id="serverName" class="input" type="text" placeholder="My Modpack Server">
+      </div>
+
+      <div class="field">
+        <label class="label" for="modLoaderSel">Mod Loader</label>
+        <select id="modLoaderSel" class="input">
+          <option value="forge-installer">Forge</option>
+          <option value="fabric">Fabric</option>
+          <option value="neoforge">NeoForge</option>
+          <option value="vanilla">Vanilla</option>
+          <option value="quilt">Quilt</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="label" for="mcVersionInput">Minecraft Version</label>
+        <input id="mcVersionInput" class="input" type="text" placeholder="1.20.1">
+      </div>
+
+      <div class="field">
+        <label class="label" for="memMin">RAM Min (GB)</label>
+        <input id="memMin" class="input" type="number" value="2" min="1" max="32">
+      </div>
+
+      <div class="field">
+        <label class="label" for="memMax">RAM Max (GB)</label>
+        <input id="memMax" class="input" type="number" value="6" min="1" max="32">
+      </div>
+
+      <div class="field">
+        <label class="label" for="serverPort">Server Port</label>
+        <input id="serverPort" class="input" type="number" value="25565" min="1024" max="65535">
+      </div>
+
+      <button id="deployBtn" class="btn btn-primary deploy-btn" disabled>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Deploy to Crafty
+      </button>
+    </aside>
+  </div>
+</div>
+
+<!-- File picker modal -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <img id="modalThumb" class="modal-thumb" alt="" loading="lazy">
+      <div>
+        <div class="modal-title" id="modalTitle"></div>
+        <div class="modal-author" id="modalAuthor"></div>
+      </div>
+    </div>
+    <div class="modal-files" id="modalFiles"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="modalCancel">Cancel</button>
+      <button class="btn btn-primary" id="modalSelect" disabled>Select version</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+  // ── State ────────────────────────────────────────────────────────────────
+  let currentPage = 0;
+  let currentQuery = '';
+  let selectedModpack = null;
+  let selectedFile = null;
+  let totalResults = 0;
+  const PAGE_SIZE = 20;
+
+  // ── Theme ────────────────────────────────────────────────────────────────
+  const themeBtn = document.getElementById('themeToggle');
+  let theme = 'dark';
+  themeBtn.addEventListener('click', () => {
+    theme = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    themeBtn.innerHTML = theme === 'dark'
+      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
+      : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+  });
+
+  // ── Toast ────────────────────────────────────────────────────────────────
+  function showToast(msg, type='') {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = 'show ' + type;
+    setTimeout(() => t.className = '', 3500);
+  }
+
+  // ── Skeletons ─────────────────────────────────────────────────────────────
+  function renderSkeletons(n=12) {
+    return Array.from({length:n}, () => `
+      <div class="card">
+        <div class="skeleton skel-thumb"></div>
+        <div class="card-body">
+          <div class="skeleton skel-line" style="width:70%"></div>
+          <div class="skeleton skel-line w60"></div>
+          <div class="skeleton skel-line" style="width:90%; margin-top:6px"></div>
+          <div class="skeleton skel-line w60"></div>
+        </div>
+      </div>`).join('');
+  }
+
+  // ── Modpack Card ─────────────────────────────────────────────────────────
+  function modLoaderGuess(name) {
+    const n = (name || '').toLowerCase();
+    if (n.includes('fabric')) return 'fabric';
+    if (n.includes('neo') || n.includes('neoforge')) return 'neoforge';
+    if (n.includes('quilt')) return 'quilt';
+    if (n.includes('forge')) return 'forge-installer';
+    return 'forge-installer';
+  }
+
+  function renderCard(mod) {
+    const thumb = mod.logo?.thumbnailUrl || '';
+    const loader = modLoaderGuess(mod.name + ' ' + (mod.categories?.map(c=>c.name).join(' ')||''));
+    const loaderLabel = loader.replace('-installer','').replace('forge','Forge').replace('fabric','Fabric').replace('neoforge','NeoForge').replace('quilt','Quilt');
+    return `
+      <div class="card" data-id="${mod.id}" data-name="${escHtml(mod.name)}" data-loader="${loader}">
+        ${thumb
+          ? `<img class="card-thumb" src="${escHtml(thumb)}" alt="" loading="lazy" width="220" height="124">`
+          : `<div class="card-thumb-placeholder"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9l6 6M15 9l-6 6"/></svg></div>`
+        }
+        <div class="card-body">
+          <div class="card-name">${escHtml(mod.name)}</div>
+          <div class="card-author">${escHtml(mod.authors?.[0]?.name || '')}</div>
+          <div class="card-desc">${escHtml(mod.summary || '')}</div>
+        </div>
+        <div class="card-footer">
+          <span class="tag tag-green">${loaderLabel}</span>
+          <span class="tag">${(mod.downloadCount||0).toLocaleString()} ↓</span>
+        </div>
+      </div>`;
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Load Modpacks ─────────────────────────────────────────────────────────
+  async function loadModpacks(q='', page=0) {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = renderSkeletons();
+    document.getElementById('pagination').innerHTML = '';
+    document.getElementById('resultCount').textContent = '';
+    try {
+      const res = await fetch(`/api/modpacks?q=${encodeURIComponent(q)}&page=${page}&page_size=${PAGE_SIZE}`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const mods = data.data || [];
+      totalResults = data.pagination?.totalCount || mods.length;
+      document.getElementById('resultCount').textContent = `${totalResults.toLocaleString()} results`;
+
+      if (!mods.length) {
+        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <p>No modpacks found for "${escHtml(q)}"</p></div>`;
+        return;
+      }
+      grid.innerHTML = mods.map(renderCard).join('');
+
+      // pagination
+      const totalPages = Math.ceil(totalResults / PAGE_SIZE);
+      if (totalPages > 1) {
+        const p = document.getElementById('pagination');
+        p.innerHTML = `
+          <button class="btn btn-ghost" id="prevBtn" ${page===0?'disabled':''}>← Prev</button>
+          <span style="font-size:13px;color:var(--text-muted)">Page ${page+1} / ${totalPages}</span>
+          <button class="btn btn-ghost" id="nextBtn" ${page>=totalPages-1?'disabled':''}>Next →</button>`;
+        document.getElementById('prevBtn')?.addEventListener('click', () => { currentPage--; loadModpacks(currentQuery, currentPage); });
+        document.getElementById('nextBtn')?.addEventListener('click', () => { currentPage++; loadModpacks(currentQuery, currentPage); });
+      }
+
+      // card click → open file modal
+      grid.querySelectorAll('.card').forEach(card => {
+        card.addEventListener('click', () => openModal(parseInt(card.dataset.id), card.dataset.name, card.dataset.loader, card));
+      });
+    } catch(e) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><p>Error loading modpacks: ${escHtml(e.message)}</p></div>`;
+      showToast('Failed to load modpacks', 'error');
+    }
+  }
+
+  // ── File Modal ────────────────────────────────────────────────────────────
+  async function openModal(modId, modName, loader, cardEl) {
+    const backdrop = document.getElementById('modalBackdrop');
+    const filesDiv = document.getElementById('modalFiles');
+    document.getElementById('modalTitle').textContent = modName;
+    document.getElementById('modalAuthor').textContent = 'Loading files...';
+    document.getElementById('modalSelect').disabled = true;
+    filesDiv.innerHTML = renderSkeletons(4);
+    backdrop.classList.add('open');
+    selectedFile = null;
+
+    try {
+      const [modRes, filesRes] = await Promise.all([
+        fetch(`/api/modpacks/${modId}`),
+        fetch(`/api/modpacks/${modId}/files`)
+      ]);
+      const modData = (await modRes.json()).data;
+      const filesData = (await filesRes.json()).data || [];
+
+      document.getElementById('modalThumb').src = modData.logo?.thumbnailUrl || '';
+      document.getElementById('modalAuthor').textContent = modData.authors?.[0]?.name || '';
+
+      if (!filesData.length) {
+        filesDiv.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No files available.</p>';
+        return;
+      }
+
+      filesDiv.innerHTML = filesData.slice(0,30).map(f => `
+        <div class="file-row" data-file-id="${f.id}" data-mc-version="${escHtml(f.gameVersions?.[0]||'')}" data-loader="${escHtml(loader)}">
+          <div>
+            <div class="file-name">${escHtml(f.displayName || f.fileName)}</div>
+            <div class="file-meta">${escHtml((f.gameVersions||[]).join(', '))} · ${new Date(f.fileDate).toLocaleDateString()}</div>
+          </div>
+          ${f.releaseType===1 ? '<span class="tag tag-green">Release</span>' : f.releaseType===2 ? '<span class="tag">Beta</span>' : '<span class="tag">Alpha</span>'}
+        </div>`).join('');
+
+      filesDiv.querySelectorAll('.file-row').forEach(row => {
+        row.addEventListener('click', () => {
+          filesDiv.querySelectorAll('.file-row').forEach(r => r.classList.remove('selected'));
+          row.classList.add('selected');
+          selectedFile = { fileId: parseInt(row.dataset.fileId), mcVersion: row.dataset.mcVersion, loader };
+          document.getElementById('modalSelect').disabled = false;
+        });
+      });
+    } catch(e) {
+      filesDiv.innerHTML = `<p style="color:var(--text-muted);font-size:13px">Error: ${escHtml(e.message)}</p>`;
+    }
+
+    document.getElementById('modalSelect').onclick = () => {
+      if (!selectedFile) return;
+      backdrop.classList.remove('open');
+      // fill sidebar
+      selectedModpack = { modId, modName, loader: selectedFile.loader };
+      document.getElementById('serverName').value = modName.replace(/[^a-zA-Z0-9 _-]/g,'').trim().substring(0,64);
+      document.getElementById('mcVersionInput').value = selectedFile.mcVersion || '';
+      document.getElementById('modLoaderSel').value = selectedFile.loader;
+      document.getElementById('deployBtn').disabled = false;
+      document.getElementById('sidebarHint').textContent = modName.substring(0,40);
+      // highlight card
+      document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+      cardEl?.classList.add('selected');
+    };
+  }
+
+  document.getElementById('modalCancel').addEventListener('click', () => {
+    document.getElementById('modalBackdrop').classList.remove('open');
+  });
+  document.getElementById('modalBackdrop').addEventListener('click', e => {
+    if (e.target === document.getElementById('modalBackdrop'))
+      document.getElementById('modalBackdrop').classList.remove('open');
+  });
+
+  // ── Deploy ────────────────────────────────────────────────────────────────
+  document.getElementById('deployBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('deployBtn');
+    const name = document.getElementById('serverName').value.trim();
+    const loader = document.getElementById('modLoaderSel').value;
+    const version = document.getElementById('mcVersionInput').value.trim();
+    const memMin = parseInt(document.getElementById('memMin').value);
+    const memMax = parseInt(document.getElementById('memMax').value);
+    const port = parseInt(document.getElementById('serverPort').value);
+
+    if (!name) { showToast('Server name is required', 'error'); return; }
+    if (!version) { showToast('Minecraft version is required', 'error'); return; }
+    if (memMin > memMax) { showToast('RAM Min cannot exceed RAM Max', 'error'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Deploying...';
+    try {
+      const res = await fetch('/api/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          server_name: name,
+          mod_id: selectedModpack?.modId || 0,
+          file_id: 0,
+          mod_loader: loader,
+          mc_version: version,
+          mem_min: memMin,
+          mem_max: memMax,
+          port
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || res.statusText);
+      }
+      const data = await res.json();
+      showToast(`✓ Server "${name}" created in Crafty!`, 'success');
+      document.getElementById('deployBtn').disabled = true;
+      document.getElementById('sidebarHint').textContent = 'Select a modpack to configure';
+      document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+    } catch(e) {
+      showToast('Deploy failed: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg> Deploy to Crafty';
+    }
+  });
+
+  // ── Search ────────────────────────────────────────────────────────────────
+  document.getElementById('searchBtn').addEventListener('click', () => {
+    currentQuery = document.getElementById('searchInput').value.trim();
+    currentPage = 0;
+    loadModpacks(currentQuery, 0);
+  });
+  document.getElementById('searchInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('searchBtn').click();
+  });
+
+  // ── Servers List ──────────────────────────────────────────────────────────
+  document.getElementById('serversBtn').addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/servers');
+      const data = await res.json();
+      const servers = data.data || [];
+      showToast(`${servers.length} server(s) in Crafty`);
+    } catch(e) {
+      showToast('Could not reach Crafty: ' + e.message, 'error');
+    }
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  loadModpacks('', 0);
+})();
+</script>
+</body>
+</html>

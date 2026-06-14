@@ -1,93 +1,77 @@
 # Crafty Modpack Manager
 
-> Self-hosted Minecraft modpack deployment panel for [CasaOS](https://casaos.io), integrating [Crafty Controller](https://craftycontrol.com) with the [CurseForge API](https://docs.curseforge.com).
-
-Provides a Shockbyte-style UI to browse CurseForge modpacks, pick a server file/build, and deploy it directly as a Crafty server instance — all from your browser.
-
----
+A CasaOS Docker app that lets you browse CurseForge Minecraft modpacks and deploy them as Crafty Controller server instances with one click — like Shockbyte, but self-hosted.
 
 ## Features
 
-- **Modpack catalog** — search and browse CurseForge Minecraft modpacks with thumbnail previews
-- **Smart file picker** — lists installable server files with auto-detected MC version and mod loader
-- **One-click deploy** — sends a properly formed server creation request to Crafty Controller v2 API
-- **Server management** — start/stop/restart existing Crafty servers from the panel
-- **Live status** — shows Crafty and CurseForge connectivity at a glance
-- **CasaOS native** — installs as a custom app via docker-compose manifest
+- Browse & search thousands of CurseForge modpacks
+- Pick a specific modpack file/version
+- Configure RAM, port, and mod loader
+- Deploys directly to your local Crafty Controller via its v2 API
+- Light/Dark mode, responsive UI
 
----
+## Quick Install (CasaOS)
 
-## Architecture
+1. Open CasaOS → App Store → **Custom Install**
+2. Paste the contents of `docker-compose.yml`
+3. Fill in the required environment variables (see below)
+4. Click Install
 
-```
-Browser → Nginx (port 7800) ─┬─ /api/* → Flask (127.0.0.1:5000) → Crafty API v2
-                              │                                    → CurseForge API
-                              └─ /* → static frontend (SPA)
-```
+## Environment Variables
 
-All services run in a single Docker container (nginx + gunicorn/Flask).
-
----
-
-## Quick start (CasaOS)
-
-1. In CasaOS, go to **App Store → Custom Install**.
-2. Paste the contents of `docker-compose.yml`.
-3. Replace the two placeholder env vars:
-   - `CRAFTY_API_TOKEN` — generate in Crafty → Settings → Users → your user → API Keys tab
-   - `CURSEFORGE_API_KEY` — generate at https://console.curseforge.com/
-4. Install. Access on `http://192.168.68.120:7800`.
-
----
-
-## Environment variables
-
-| Variable | Description | Example |
+| Variable | Required | Description |
 |---|---|---|
-| `CRAFTY_URL` | Crafty base URL | `https://192.168.68.120:8443` |
-| `CRAFTY_API_TOKEN` | Crafty v2 API Bearer token | `eyJ…` |
-| `CURSEFORGE_API_KEY` | CurseForge REST API key | `$2a$10…` |
+| `CURSEFORGE_API_KEY` | ✅ | API key from https://console.curseforge.com |
+| `CRAFTY_TOKEN` | ✅ | Crafty JWT token (Settings → API Tokens) |
+| `CRAFTY_URL` | ✅ | Crafty base URL e.g. `https://192.168.68.120:8443` |
+| `CRAFTY_VERIFY_SSL` | ❌ | `false` for self-signed certs (default) |
+| `DEFAULT_MEM_MIN` | ❌ | Default min RAM in GB (default: 2) |
+| `DEFAULT_MEM_MAX` | ❌ | Default max RAM in GB (default: 6) |
+| `BASE_SERVER_PORT` | ❌ | Default Minecraft port (default: 25565) |
 
----
+## Getting a CurseForge API Key
 
-## Build locally
+1. Go to https://console.curseforge.com
+2. Sign in and create an API key (free tier covers personal use)
+
+## Getting your Crafty JWT Token
+
+1. Open Crafty → Settings → API Tokens
+2. Create a token with Server Create permissions
+3. Paste the token value as `CRAFTY_TOKEN`
+
+## How Deploy Works
+
+When you click **Deploy to Crafty**, the app sends the exact payload that the Crafty UI itself sends (captured from network traces):
+
+```json
+{
+  "name": "My Server",
+  "roles": [],
+  "monitoring_type": "minecraft_java",
+  "minecraft_java_monitoring_data": {"host": "127.0.0.1", "port": 25565},
+  "create_type": "minecraft_java",
+  "minecraft_java_create_data": {
+    "create_type": "download_jar",
+    "download_jar_create_data": {
+      "category": "mc_java_servers",
+      "type": "forge-installer",
+      "version": "1.20.1",
+      "mem_min": 6,
+      "mem_max": 6,
+      "server_properties_port": 25565
+    }
+  }
+}
+```
+
+## Build Locally
 
 ```bash
 git clone https://github.com/ChargeyXD/crafty-modpack-manager
 cd crafty-modpack-manager
-docker build -t crafty-modpack-manager .
-docker run -p 7800:7800 \
-  -e CRAFTY_URL=https://YOUR_CRAFTY_IP:8443 \
-  -e CRAFTY_API_TOKEN=YOUR_TOKEN \
-  -e CURSEFORGE_API_KEY=YOUR_CF_KEY \
-  crafty-modpack-manager
+cp .env.example .env
+# Fill in your .env
+docker compose up --build
+# Open http://localhost:7800
 ```
-
----
-
-## API reference (backend)
-
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/modpacks/search?q=&mc_version=&page=` | Search CurseForge modpacks |
-| GET | `/api/modpacks/:id` | Get modpack details |
-| GET | `/api/modpacks/:id/files` | List files (enriched with detected loader + MC ver) |
-| GET | `/api/servers` | List Crafty servers |
-| POST | `/api/servers/create` | Create a new Crafty server from a modpack file |
-| POST | `/api/servers/:id/action/:action` | start / stop / restart / kill |
-| DELETE | `/api/servers/:id` | Delete a Crafty server |
-| GET | `/health` | Health check (includes Crafty reachability) |
-
----
-
-## Security notes
-
-- **Rotate your Crafty token** if it was ever committed publicly. Regenerate at Crafty → Settings → Users → API Keys.
-- Keep this panel behind Cloudflare Access or on LAN only — it proxies privileged Crafty operations.
-- For external access use your Cloudflare tunnel hostname instead of the LAN IP in `CRAFTY_URL`.
-
----
-
-## License
-
-MIT
