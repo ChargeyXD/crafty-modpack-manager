@@ -37,10 +37,21 @@ def _crafty(method, path, **kwargs):
     except requests.exceptions.RequestException as e:
         return None, {"error": "Could not reach Crafty", "detail": str(e)}
 
-def _cf(path, **kwargs):
+def _cf_get(path, **kwargs):
     url = f"{CF_BASE}{path}"
     try:
         r = requests.get(url, headers=_cfh(), timeout=15, **kwargs)
+        r.raise_for_status()
+        return r.json(), None
+    except requests.exceptions.HTTPError:
+        return None, {"error": f"CurseForge HTTP {r.status_code}", "detail": r.text[:400]}
+    except requests.exceptions.RequestException as e:
+        return None, {"error": "Could not reach CurseForge", "detail": str(e)}
+
+def _cf_post(path, **kwargs):
+    url = f"{CF_BASE}{path}"
+    try:
+        r = requests.post(url, headers=_cfh(), timeout=15, **kwargs)
         r.raise_for_status()
         return r.json(), None
     except requests.exceptions.HTTPError:
@@ -74,8 +85,20 @@ def pick_mc_version(versions):
             return v
     return ""
 
+def enrich_files(files):
+    enriched = []
+    for f in files:
+        gv = f.get("gameVersions", [])
+        enriched.append({
+            **f,
+            "_loader":     detect_loader(f.get("fileName", ""), gv),
+            "_mc_version": pick_mc_version(gv),
+        })
+    return enriched
 
-# Health / Config
+
+# ── Health / Config ──────────────────────────────────────────────────────────
+
 @app.route("/health")
 def health():
     crafty_ok = False
@@ -98,7 +121,8 @@ def config():
     })
 
 
-# CurseForge
+# ── CurseForge ───────────────────────────────────────────────────────────────
+
 @app.route("/api/modpacks/search")
 def search_modpacks():
     q          = request.args.get("q", "").strip()
@@ -111,39 +135,85 @@ def search_modpacks():
     }
     if q:          params["searchFilter"] = q
     if mc_version: params["gameVersion"]  = mc_version
-    data, e = _cf("/mods/search", params=params)
+    data, e = _cf_get("/mods/search", params=params)
     if e: return err(e["error"], e["detail"], 502)
     return ok(data.get("data", []))
 
 @app.route("/api/modpacks/<int:mod_id>")
 def get_modpack(mod_id):
-    data, e = _cf(f"/mods/{mod_id}")
+    data, e = _cf_get(f"/mods/{mod_id}")
     if e: return err(e["error"], e["detail"], 502)
     return ok(data.get("data", {}))
 
 @app.route("/api/modpacks/<int:mod_id>/files")
 def get_modpack_files(mod_id):
-    data, e = _cf(f"/mods/{mod_id}/files", params={"pageSize": 50, "sortOrder": "desc"})
-    if e: return err(e["error"], e["detail"], 502)
-    files = data.get("data", [])
-    enriched = []
-    for f in files:
-        gv = f.get("gameVersions", [])
-        enriched.append({
-            **f,
-            "_loader":     detect_loader(f.get("fileName", ""), gv),
-            "_mc_version": pick_mc_version(gv),
-        })
-    return ok(enriched)
+    """
+    CurseForge often returns 403 on GET /mods/{id}/files for restricted packs.
+    Strategy:
+      1. Try GET /mods/{id}/files (standard)
+      2. On 403/error, fall back to the latestFiles array from GET /mods/{id}
+      3. Also try POST /mods/files with the file IDs from latestFilesIndexes
+    """
+    # Strategy 1: standard files endpoint
+    data, e = _cf_get(f"/mods/{mod_id}/files", params={"pageSize": 50, "sortOrder": "desc"})
+    if not e:
+        files = data.get("data", [])
+        if files:
+            return ok(enrich_files(files))
+
+    # Strategy 2: pull latestFiles from the mod detail object (always returned)
+    mod_data, mod_err = _cf_get(f"/mods/{mod_id}")
+    if mod_err:
+        # If even the mod detail fails, return the original files error
+        orig = e or mod_err
+        return err(orig["error"], orig["detail"], 502)
+
+    mod = mod_data.get("data", {})
+    latest_files = mod.get("latestFiles", [])
+
+    if latest_files:
+        logging.info("Used latestFiles fallback for mod %d (%d files)", mod_id, len(latest_files))
+        return ok(enrich_files(latest_files))
+
+    # Strategy 3: POST /mods/files with IDs from latestFilesIndexes
+    indexes = mod.get("latestFilesIndexes", [])
+    file_ids = list({idx["fileId"] for idx in indexes if "fileId" in idx})
+    if file_ids:
+        batch, batch_err = _cf_post("/mods/files", json={"fileIds": file_ids[:50]})
+        if not batch_err:
+            files = batch.get("data", [])
+            if files:
+                logging.info("Used POST /mods/files fallback for mod %d", mod_id)
+                return ok(enrich_files(files))
+
+    # Nothing worked — return empty list with a hint
+    return ok([])
 
 @app.route("/api/modpacks/<int:mod_id>/files/<int:file_id>/download-url")
 def get_download_url(mod_id, file_id):
-    data, e = _cf(f"/mods/{mod_id}/files/{file_id}/download-url")
-    if e: return err(e["error"], e["detail"], 502)
-    return ok(data.get("data", ""))
+    data, e = _cf_get(f"/mods/{mod_id}/files/{file_id}/download-url")
+    if not e:
+        url = data.get("data", "")
+        if url:
+            return ok(url)
+
+    # Fallback: reconstruct URL from file detail
+    fdata, fe = _cf_get(f"/mods/{mod_id}/files/{file_id}")
+    if not fe:
+        f = fdata.get("data", {})
+        dl = f.get("downloadUrl") or f.get("url") or ""
+        if dl:
+            return ok(dl)
+        # Construct CDN URL from file ID as last resort
+        fid = str(file_id)
+        cdn = f"https://edge.forgecdn.net/files/{fid[:4]}/{fid[4:]}/{f.get('fileName','modpack.zip')}"
+        return ok(cdn)
+
+    return err(e["error"] if e else fe["error"], "", 502)
 
 
-# Crafty servers
+# ── Crafty servers ────────────────────────────────────────────────────────────
+
 @app.route("/api/servers")
 def list_servers():
     data, e = _crafty("GET", "/api/v2/servers")
@@ -193,10 +263,18 @@ def create_server():
 
     download_url = ""
     if modpack_id and modpack_file_id:
-        dl, e = _cf(f"/mods/{modpack_id}/files/{modpack_file_id}/download-url")
-        if e:
-            return err("Could not fetch download URL from CurseForge", e["detail"], 502)
-        download_url = dl.get("data", "") or ""
+        # Use the same resilient download-url resolution
+        dl, e = _cf_get(f"/mods/{modpack_id}/files/{modpack_file_id}/download-url")
+        if not e:
+            download_url = dl.get("data", "") or ""
+        if not download_url:
+            fdata, _ = _cf_get(f"/mods/{modpack_id}/files/{modpack_file_id}")
+            if fdata:
+                f = fdata.get("data", {})
+                download_url = f.get("downloadUrl") or f.get("url") or ""
+            if not download_url:
+                fid = str(modpack_file_id)
+                download_url = f"https://edge.forgecdn.net/files/{fid[:4]}/{fid[4:]}/modpack.zip"
 
     if not download_url:
         download_url = (body.get("download_url") or "").strip()
@@ -218,7 +296,8 @@ def create_server():
         "import_url": download_url,
         "agree_to_eula": True,
     }
-    logging.info("Creating Crafty server: %s loader=%s mc=%s", server_name, modloader, mc_version)
+    logging.info("Creating Crafty server: %s loader=%s mc=%s url=%s",
+                 server_name, modloader, mc_version, download_url[:80])
 
     data, e = _crafty("POST", "/api/v2/servers", json=payload)
     if e: return err(e["error"], e["detail"], 502)
