@@ -1,8 +1,19 @@
-.env
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 .venv/
+venv/
 dist/
 build/
 *.egg-info/
+
+# Secrets — never commit these
+.env
+*.env
+
+# Editor
+.vscode/
+.idea/
+*.swp

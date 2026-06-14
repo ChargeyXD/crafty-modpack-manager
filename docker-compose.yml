@@ -2,26 +2,34 @@ version: "3.8"
 
 services:
   crafty-modpack-manager:
-    image: chargeyxd/crafty-modpack-manager:latest
+    image: ghcr.io/chargeyxd/crafty-modpack-manager:latest
     build: .
     container_name: crafty-modpack-manager
     restart: unless-stopped
     ports:
       - "7800:7800"
     environment:
-      # Your CurseForge API key — get one at https://console.curseforge.com
-      - CURSEFORGE_API_KEY=${CURSEFORGE_API_KEY}
-      # Crafty base URL — internal LAN address or Cloudflare tunnel
-      - CRAFTY_URL=${CRAFTY_URL:-https://192.168.68.120:8443}
-      # Crafty Bearer token (JWT)
-      - CRAFTY_TOKEN=${CRAFTY_TOKEN}
-      # Verify Crafty TLS cert? Set false for self-signed (local setup)
-      - CRAFTY_VERIFY_SSL=${CRAFTY_VERIFY_SSL:-false}
-      # Default min/max RAM in GB applied to new servers
-      - DEFAULT_MEM_MIN=${DEFAULT_MEM_MIN:-2}
-      - DEFAULT_MEM_MAX=${DEFAULT_MEM_MAX:-6}
-      # Base port for new servers — increments automatically per server
-      - BASE_SERVER_PORT=${BASE_SERVER_PORT:-25565}
+      # ── Required ─────────────────────────────────────────────────────────────
+      # CurseForge API key — https://console.curseforge.com
+      - CURSEFORGE_API_KEY=
+      # Crafty JWT token — Crafty UI ▸ Settings ▸ API Tokens
+      - CRAFTY_TOKEN=
+      # Crafty base URL (LAN IP or Cloudflare tunnel)
+      - CRAFTY_URL=https://192.168.68.120:8443
+
+      # ── Optional (defaults shown) ─────────────────────────────────────────
+      # Set to "false" when Crafty uses a self-signed TLS cert (default for local)
+      - CRAFTY_VERIFY_SSL=false
+      # Default RAM allocated to new servers (GB)
+      - DEFAULT_MEM_MIN=2
+      - DEFAULT_MEM_MAX=6
+      # Starting port for new Minecraft servers
+      - BASE_SERVER_PORT=25565
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7800/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 x-casaos:
   architectures:
@@ -31,7 +39,7 @@ x-casaos:
   author: ChargeyXD
   category: Games
   description:
-    en_us: Browse CurseForge Minecraft modpacks and deploy them directly as Crafty Controller server instances from a Shockbyte-style web UI.
+    en_us: Browse CurseForge Minecraft modpacks and deploy them as Crafty Controller server instances — like Shockbyte, self-hosted.
   developer: ChargeyXD
   icon: https://raw.githubusercontent.com/ChargeyXD/crafty-modpack-manager/main/assets/icon.png
   index: /
@@ -40,13 +48,12 @@ x-casaos:
   store_app_id: crafty-modpack-manager
   tagline:
     en_us: One-click Minecraft modpack server deployment
-  thumbnail: https://raw.githubusercontent.com/ChargeyXD/crafty-modpack-manager/main/assets/icon.png
   title:
     en_us: Crafty Modpack Manager
   tips:
     before_install:
       en_us: |
-        You need:
-        1. A CurseForge API key from https://console.curseforge.com
-        2. Your Crafty Controller JWT token (Settings → API Tokens)
-        3. Crafty URL reachable from this container (LAN IP or Cloudflare tunnel)
+        Fill in these 3 environment variables before installing:
+        • CURSEFORGE_API_KEY — get free key at https://console.curseforge.com
+        • CRAFTY_TOKEN       — Crafty UI ▸ Settings ▸ API Tokens
+        • CRAFTY_URL         — your Crafty address e.g. https://192.168.68.120:8443
