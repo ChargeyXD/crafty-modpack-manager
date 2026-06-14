@@ -1,28 +1,53 @@
 version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────
+#  Crafty Modpack Manager — CasaOS-ready docker-compose
+#  Add to CasaOS via: App Store → Custom Install → paste this file
+# ─────────────────────────────────────────────────────────────────────
 services:
   crafty-modpack-manager:
-    build: .
     image: chargeyxd/crafty-modpack-manager:latest
     container_name: crafty-modpack-manager
     restart: unless-stopped
     ports:
-      - "7800:7800"
+      - target: 7800
+        published: 7800
+        protocol: tcp
     environment:
+      # Crafty Controller base URL (LAN or Cloudflare tunnel hostname)
       - CRAFTY_URL=https://192.168.68.120:8443
+      # Crafty API token — generate in Crafty → Settings → Users → API Keys
       - CRAFTY_API_TOKEN=REPLACE_WITH_YOUR_CRAFTY_TOKEN
+      # CurseForge API key — generate at https://console.curseforge.com/
       - CURSEFORGE_API_KEY=REPLACE_WITH_YOUR_CURSEFORGE_KEY
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    x-casaos:
-      author: ChargeyXD
-      category: Games
-      description:
-        en_us: Browse CurseForge modpacks and deploy them as Crafty Controller server instances with one click. Like Shockbyte, but self-hosted on your CasaOS server.
-      icon: https://raw.githubusercontent.com/ChargeyXD/crafty-modpack-manager/main/frontend/icon.svg
-      index: /
-      is_uncontrolled: false
-      port_map: "7800"
-      scheme: http
-      store_app_id: crafty-modpack-manager
-      title:
-        en_us: Crafty Modpack Manager
+    networks:
+      - crafty-modpack-net
+
+networks:
+  crafty-modpack-net:
+    driver: bridge
+
+x-casaos:
+  author: ChargeyXD
+  category: Games
+  description:
+    en_us: Browse CurseForge Minecraft modpacks and deploy them as Crafty Controller server instances with one click — like Shockbyte, but fully self-hosted on your CasaOS server.
+  icon: https://raw.githubusercontent.com/ChargeyXD/crafty-modpack-manager/main/frontend/icon.svg
+  index: /
+  is_uncontrolled: false
+  port_map: "7800"
+  scheme: http
+  store_app_id: crafty-modpack-manager
+  tagline:
+    en_us: Self-hosted Minecraft modpack deployment panel
+  title:
+    en_us: Crafty Modpack Manager
+  tips:
+    before_install:
+      en_us: |
+        Before installing, generate:
+        1. A Crafty API token: Crafty → Settings → Users → your user → API Keys tab.
+        2. A CurseForge API key: https://console.curseforge.com/
+        Then set both as environment variables in this compose file.

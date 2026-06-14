@@ -1,21 +1,193 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Crafty Modpack Manager</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
-  <style>body{font-family:'Satoshi',sans-serif;background:#171614;color:#cdccca;margin:0} .wrap{max-width:1280px;margin:auto;padding:24px} .top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:24px;flex-wrap:wrap}.brand{display:flex;align-items:center;gap:12px}.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#4f98a3,#7db5bc);display:grid;place-items:center;color:white;font-weight:700}.grid{display:grid;grid-template-columns:320px 1fr;gap:20px}.panel{background:#1c1b19;border:1px solid #393836;border-radius:16px;padding:18px}.input,.select,.btn{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #393836;background:#201f1d;color:#cdccca}.btn{background:#4f98a3;color:#171614;border:none;font-weight:700;cursor:pointer}.btn.secondary{background:#22211f;color:#cdccca;border:1px solid #393836}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}.card{background:#1c1b19;border:1px solid #393836;border-radius:16px;overflow:hidden}.thumb{aspect-ratio:16/9;background:#22211f;width:100%;object-fit:cover}.content{padding:14px;display:grid;gap:10px}.badge{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(79,152,163,.16);color:#4f98a3;font-size:.82rem;font-weight:700}.server-list{display:grid;gap:12px}.server-item{padding:14px;border:1px solid #393836;border-radius:14px;background:#201f1d;display:flex;justify-content:space-between;gap:10px;align-items:center}.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:20px}.modal.open{display:flex}.modal-card{width:min(760px,100%);background:#1c1b19;border:1px solid #393836;border-radius:20px;padding:20px;display:grid;gap:16px}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.small{font-size:.86rem;color:#8c8a86}@media (max-width:900px){.grid,.two{grid-template-columns:1fr}}</style>
+  <style>
+  :root {
+    --bg:#171614; --sur:#1c1b19; --sur2:#201f1d; --suroff:#252421;
+    --bdr:#393836; --txt:#cdccca; --muted:#8c8a86; --faint:#5a5957;
+    --pri:#4f98a3; --pri-hov:#227f8b; --pri-act:#1a626b;
+    --grn:#6daa45; --red:#dd6974; --org:#fdab43;
+    --radius:14px; --rcard:18px; --rbig:22px;
+    --shadow:0 8px 32px rgba(0,0,0,.35);
+    --font:'Satoshi',system-ui,sans-serif;
+    --trans:180ms cubic-bezier(.16,1,.3,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--font);background:var(--bg);color:var(--txt);min-height:100dvh;font-size:16px;-webkit-font-smoothing:antialiased}
+  button{cursor:pointer;font-family:inherit}
+  input,select{font-family:inherit}
+  img{display:block;max-width:100%}
+  .app{display:grid;grid-template-columns:300px 1fr;min-height:100dvh}
+  .sidebar{background:var(--sur);border-right:1px solid var(--bdr);display:flex;flex-direction:column;position:sticky;top:0;height:100dvh;overflow-y:auto}
+  .main{display:flex;flex-direction:column;overflow:hidden}
+  .sb-header{padding:20px;border-bottom:1px solid var(--bdr)}
+  .logo-row{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+  .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--pri),#7db5bc);display:grid;place-items:center;flex-shrink:0}
+  .logo svg{width:20px;height:20px}
+  .app-name{font-size:1.05rem;font-weight:700;line-height:1.2}
+  .app-sub{font-size:.8rem;color:var(--muted)}
+  .sb-section{padding:16px;border-bottom:1px solid var(--bdr)}
+  .sb-section h4{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin-bottom:12px}
+  .form-row{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+  .form-row label{font-size:.83rem;color:var(--muted)}
+  .input,.select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--bdr);background:var(--sur2);color:var(--txt);font-size:.9rem;outline:none;transition:border-color var(--trans)}
+  .input:focus,.select:focus{border-color:var(--pri)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border-radius:10px;border:none;font-weight:600;font-size:.9rem;transition:background var(--trans),transform var(--trans);white-space:nowrap}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:var(--pri);color:#0f1720}
+  .btn-primary:hover{background:var(--pri-hov)}
+  .btn-secondary{background:var(--sur2);color:var(--txt);border:1px solid var(--bdr)}
+  .btn-secondary:hover{background:var(--suroff)}
+  .btn-full{width:100%}
+  .btn-sm{padding:7px 12px;font-size:.82rem;border-radius:8px}
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;display:inline-block}
+  .dot-ok{background:var(--grn)} .dot-err{background:var(--red)} .dot-idle{background:var(--faint)}
+  .status-row{display:flex;align-items:center;gap:8px;font-size:.85rem;padding:6px 0}
+  .status-row span{color:var(--muted)}
+  .server-item{padding:10px 12px;border-radius:10px;background:var(--sur2);border:1px solid var(--bdr);margin-bottom:8px}
+  .server-name{font-weight:600;font-size:.9rem;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .server-meta{font-size:.78rem;color:var(--muted);margin-bottom:8px}
+  .server-actions{display:flex;gap:6px;flex-wrap:wrap}
+  .empty-state{text-align:center;padding:20px 0;color:var(--faint);font-size:.85rem}
+  .topbar{padding:16px 24px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar-title{font-size:1.15rem;font-weight:700;flex:1}
+  .search-bar{display:flex;gap:8px;flex:1;min-width:200px}
+  .search-bar .input{flex:1}
+  .page-ctrls{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted)}
+  .catalog{flex:1;overflow-y:auto;padding:20px 24px}
+  .catalog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+  .pack-card{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--rcard);overflow:hidden;display:flex;flex-direction:column;transition:border-color var(--trans),box-shadow var(--trans)}
+  .pack-card:hover{border-color:var(--pri);box-shadow:0 0 0 2px rgba(79,152,163,.15)}
+  .pack-thumb{aspect-ratio:16/9;object-fit:cover;width:100%;background:var(--suroff)}
+  .pack-thumb-placeholder{aspect-ratio:16/9;background:linear-gradient(135deg,var(--suroff),var(--sur2));display:grid;place-items:center}
+  .pack-thumb-placeholder svg{width:36px;height:36px;opacity:.3}
+  .pack-body{padding:14px;display:flex;flex-direction:column;gap:8px;flex:1}
+  .pack-badges{display:flex;gap:6px;flex-wrap:wrap}
+  .badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:.75rem;font-weight:700}
+  .badge-loader{background:rgba(79,152,163,.18);color:var(--pri)}
+  .badge-ver{background:rgba(255,255,255,.07);color:var(--muted)}
+  .pack-title{font-weight:700;font-size:1rem;line-height:1.3}
+  .pack-summary{font-size:.83rem;color:var(--muted);line-height:1.5;flex:1}
+  .pack-footer{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+  .pack-dl{font-size:.78rem;color:var(--faint)}
+  .shimmer{background:linear-gradient(90deg,var(--sur) 25%,var(--suroff) 50%,var(--sur) 75%);background-size:200% 100%;animation:shimmer 1.4s ease-in-out infinite;border-radius:10px}
+  @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:20px;z-index:100}
+  .modal-backdrop.open{display:flex}
+  .modal{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--rbig);padding:24px;width:min(680px,100%);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:18px;max-height:90dvh;overflow-y:auto}
+  .modal-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .modal-title{font-size:1.25rem;font-weight:700;line-height:1.3}
+  .modal-sub{font-size:.85rem;color:var(--muted);margin-top:4px}
+  .close-btn{width:32px;height:32px;border-radius:8px;background:var(--sur2);border:1px solid var(--bdr);color:var(--muted);font-size:1.1rem;display:grid;place-items:center;flex-shrink:0}
+  .close-btn:hover{background:var(--suroff)}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .form-grid .span2{grid-column:span 2}
+  .form-divider{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);padding:4px 0;border-top:1px solid var(--bdr)}
+  .modal-footer{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+  .file-hint{font-size:.78rem;color:var(--muted);margin-top:4px}
+  .toast-stack{position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:10px;z-index:200}
+  .toast{padding:12px 18px;border-radius:12px;font-size:.9rem;font-weight:500;box-shadow:var(--shadow);animation:toastIn .25s ease;max-width:360px;transition:opacity .4s}
+  .toast-ok{background:#1e3518;border:1px solid var(--grn);color:#b7f49b}
+  .toast-err{background:#3a1a1e;border:1px solid var(--red);color:#fbb4bb}
+  .toast-info{background:var(--sur);border:1px solid var(--bdr);color:var(--txt)}
+  @keyframes toastIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  .spin{animation:spin .8s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .faint{color:var(--faint)} .text-ok{color:var(--grn)} .text-err{color:var(--red)}
+  @media(max-width:860px){.app{grid-template-columns:1fr}.sidebar{position:relative;height:auto}.form-grid{grid-template-columns:1fr}.form-grid .span2{grid-column:span 1}}
+  </style>
 </head>
-<body><div class="wrap"><div class="top"><div class="brand"><div class="logo">CM</div><div><h1 style="margin:0">Crafty Modpack Manager</h1><div class="small">Browse CurseForge packs and spawn Crafty servers like a self-hosted game panel.</div></div></div><button class="btn secondary" id="refreshBtn" style="width:auto">Refresh servers</button></div><div class="grid"><div style="display:grid;gap:20px"><div class="panel"><h3>Discover modpacks</h3><input id="searchInput" class="input" placeholder="Search modpacks"><div style="height:10px"></div><input id="mcVersion" class="input" placeholder="Minecraft version, e.g. 1.20.1"><div style="height:10px"></div><button class="btn" id="searchBtn">Search CurseForge</button></div><div class="panel"><h3>Crafty status</h3><div id="configBox" class="small">Loading configuration…</div></div><div class="panel"><h3>Active servers</h3><div id="servers" class="server-list"></div></div></div><div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap"><div><h3 style="margin:0">Modpack catalog</h3><div class="small">Popular CurseForge server packs and installable files.</div></div><span id="resultCount" class="small">No results</span></div><div id="results" class="cards"></div></div></div></div><div class="modal" id="installModal"><div class="modal-card"><div><h2 id="modalTitle" style="margin:0 0 6px 0">Install modpack</h2><div id="modalMeta" class="small"></div></div><div class="two"><input id="serverName" class="input" placeholder="Server name"><select id="modloader" class="select"><option>forge</option><option>fabric</option><option>neoforge</option><option>quilt</option></select><input id="serverMcVersion" class="input" placeholder="Minecraft version"><input id="serverPort" class="input" type="number" value="25565"><input id="minRam" class="input" type="number" value="2048"><input id="maxRam" class="input" type="number" value="6144"></div><select id="fileSelect" class="select"></select><div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap"><button class="btn secondary" id="cancelModal" style="width:auto">Cancel</button><button class="btn" id="installBtn" style="width:auto">Create Crafty server</button></div></div></div><script>
-let selectedPack=null,selectedFiles=[];async function api(path,options={}){const r=await fetch(path,options);return await r.json()} function safe(v,d='—'){return v??d}
-async function loadConfig(){const c=await api('/api/config');document.getElementById('configBox').innerHTML=`Crafty URL: <b>${c.crafty_url}</b><br>Crafty token: <b>${c.crafty_configured?'configured':'missing'}</b><br>CurseForge key: <b>${c.curseforge_configured?'configured':'missing'}</b>`}
-async function loadServers(){const el=document.getElementById('servers');el.innerHTML='Loading…';try{const data=await api('/api/servers');const items=data.data||data.servers||data||[];if(!Array.isArray(items)||!items.length){el.innerHTML='No servers found in Crafty yet.';return}el.innerHTML=items.map(s=>`<div class="server-item"><div><div><b>${safe(s.server_name||s.name)}</b></div><div class="small">ID: ${safe(s.server_id||s.id)} · Type: ${safe(s.type||s.server_type)}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" style="width:auto" onclick="serverAction('${safe(s.server_id||s.id,'')}','start')">Start</button><button class="btn secondary" style="width:auto" onclick="serverAction('${safe(s.server_id||s.id,'')}','stop')">Stop</button></div></div>`).join('')}catch(e){el.innerHTML='Could not load servers from Crafty.'}}
-async function serverAction(id,action){if(!id)return;await api(`/api/servers/${id}/action/${action}`,{method:'POST'});await loadServers()}
-async function searchModpacks(){const q=document.getElementById('searchInput').value.trim();const mc=document.getElementById('mcVersion').value.trim();const box=document.getElementById('results');box.innerHTML='Searching CurseForge…';try{const data=await api(`/api/modpacks/search?q=${encodeURIComponent(q)}&mc_version=${encodeURIComponent(mc)}`);const items=data.data||[];document.getElementById('resultCount').textContent=`${items.length} results`;if(!items.length){box.innerHTML='No modpacks matched your query.';return}box.innerHTML=items.map(pack=>{const img=pack.logo?.thumbnailUrl||pack.logo?.url||'';const summary=(pack.summary||'No description').slice(0,140);return `<div class="card">${img?`<img class="thumb" src="${img}" alt="${pack.name}" loading="lazy">`:`<div class="thumb"></div>`}<div class="content"><div class="badge">${safe(pack.latestFilesIndexes?.[0]?.modLoader,'modpack')}</div><div style="font-size:1.1rem;font-weight:700">${pack.name}</div><div class="small">${summary}</div><div class="small">Downloads: ${pack.downloadCount||0}</div><button class="btn" onclick='openInstall(${pack.id}, ${JSON.stringify("" )}); this.remove()'>Select below</button><button class="btn secondary" style="margin-top:6px" onclick="openPack(${pack.id}, ${JSON.stringify(pack.name)})">Install in Crafty</button></div></div>`}).join('')}catch(e){box.innerHTML='Search failed. Check your CurseForge API key.'}}
-async function openPack(id,name){selectedPack={id,name};document.getElementById('modalTitle').textContent=`Install ${name}`;document.getElementById('serverName').value=name;document.getElementById('installModal').classList.add('open');document.getElementById('fileSelect').innerHTML='<option>Loading files…</option>';const data=await api(`/api/modpacks/${id}/files`);selectedFiles=data.data||[];document.getElementById('fileSelect').innerHTML=selectedFiles.slice(0,50).map(f=>`<option value="${f.id}">${f.displayName||f.fileName}</option>`).join('')||'<option value="">No files found</option>';const first=selectedFiles[0];document.getElementById('serverMcVersion').value=(first?.gameVersions||[]).find(v=>/^\d+\.\d+/.test(v))||'';const lg=(first?.fileName||'').toLowerCase();document.getElementById('modloader').value=lg.includes('fabric')?'fabric':(lg.includes('neo')?'neoforge':'forge')}
-async function installSelected(){const payload={modpack_id:selectedPack.id,modpack_file_id:Number(document.getElementById('fileSelect').value),server_name:document.getElementById('serverName').value.trim(),modloader:document.getElementById('modloader').value,mc_version:document.getElementById('serverMcVersion').value.trim(),port:Number(document.getElementById('serverPort').value),min_ram:Number(document.getElementById('minRam').value),max_ram:Number(document.getElementById('maxRam').value)};const btn=document.getElementById('installBtn');btn.textContent='Creating…';btn.disabled=true;try{await api('/api/servers/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});alert('Crafty response received. Check your Crafty panel for creation progress.');document.getElementById('installModal').classList.remove('open');await loadServers()}catch(e){alert('Server creation failed.')}finally{btn.textContent='Create Crafty server';btn.disabled=false}}
-document.getElementById('searchBtn').addEventListener('click',searchModpacks);document.getElementById('refreshBtn').addEventListener('click',loadServers);document.getElementById('cancelModal').addEventListener('click',()=>document.getElementById('installModal').classList.remove('open'));document.getElementById('installBtn').addEventListener('click',installSelected);window.serverAction=serverAction;loadConfig();loadServers();searchModpacks();
-</script></body></html>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-header">
+      <div class="logo-row">
+        <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M7 8l3 3-3 3"/><path d="M13 14h4"/></svg></div>
+        <div><div class="app-name">Modpack Manager</div><div class="app-sub">Crafty + CurseForge</div></div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <h4>System status</h4>
+      <div class="status-row"><span class="dot dot-idle" id="craftyDot"></span><span>Crafty Controller</span><span id="craftyUrl" class="faint" style="margin-left:auto;font-size:.78rem;overflow:hidden;text-overflow:ellipsis;max-width:110px"></span></div>
+      <div class="status-row"><span class="dot dot-idle" id="cfDot"></span><span>CurseForge API</span></div>
+    </div>
+    <div class="sb-section" style="flex:1;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h4 style="margin-bottom:0">Active servers</h4>
+        <button class="btn btn-secondary btn-sm" onclick="loadServers()">&#8635; Refresh</button>
+      </div>
+      <div id="serversList"></div>
+    </div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <span class="topbar-title">Browse Modpacks</span>
+      <div class="search-bar">
+        <input id="searchInput" class="input" placeholder="Search CurseForge modpacks&hellip;" style="min-width:180px"/>
+        <input id="mcFilter" class="input" placeholder="MC version" style="width:120px"/>
+        <button class="btn btn-primary" onclick="doSearch()" id="searchBtn">Search</button>
+      </div>
+      <div class="page-ctrls">
+        <button class="btn btn-secondary btn-sm" id="prevPage" onclick="changePage(-1)" disabled>&larr; Prev</button>
+        <span id="pageLabel">Page 1</span>
+        <button class="btn btn-secondary btn-sm" id="nextPage" onclick="changePage(1)">Next &rarr;</button>
+      </div>
+    </div>
+    <div class="catalog" id="catalog"><div class="catalog-grid" id="catalogGrid"></div></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="installModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div><div class="modal-title" id="modalTitle">Install modpack</div><div class="modal-sub" id="modalSub"></div></div>
+      <button class="close-btn" onclick="closeModal()">&#10005;</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-row"><label>Server name</label><input id="iName" class="input" placeholder="My Modpack Server"/></div>
+      <div class="form-row"><label>Port</label><input id="iPort" class="input" type="number" value="25565" min="1024" max="65535"/></div>
+      <div class="form-row"><label>Minecraft version</label><input id="iMcVer" class="input" placeholder="e.g. 1.20.1"/></div>
+      <div class="form-row"><label>Mod loader</label><select id="iLoader" class="select"><option value="forge">Forge</option><option value="fabric">Fabric</option><option value="neoforge">NeoForge</option><option value="quilt">Quilt</option></select></div>
+      <div class="form-row"><label>Min RAM (MB)</label><input id="iMinRam" class="input" type="number" value="2048" min="512"/></div>
+      <div class="form-row"><label>Max RAM (MB)</label><input id="iMaxRam" class="input" type="number" value="6144" min="1024"/></div>
+      <div class="form-row span2"><div class="form-divider">Select build / file</div></div>
+      <div class="form-row span2">
+        <label>Available files <span class="faint" style="font-size:.78rem">(latest 50 shown)</span></label>
+        <select id="iFile" class="select" onchange="onFileChange()" size="5" style="height:auto;border-radius:10px"></select>
+        <div id="fileHint" class="file-hint"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="installBtn" onclick="doInstall()">Create Crafty server</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+let currentPage=0,activePack=null,packFiles=[];
+function toast(msg,type='info'){const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;document.getElementById('toastStack').prepend(t);setTimeout(()=>t.style.opacity='0',3500);setTimeout(()=>t.remove(),4000);}
+async function api(path,opts={}){const r=await fetch(path,opts);const j=await r.json();if(!r.ok||j.status==='error')throw new Error(j.error||`HTTP ${r.status}`);return j.data!==undefined?j.data:j;}
+async function loadConfig(){try{const c=await api('/api/config');document.getElementById('craftyUrl').textContent=c.crafty_url.replace(/https?:\/\//,'');document.getElementById('cfDot').className='dot '+(c.curseforge_configured?'dot-ok':'dot-err');}catch(e){}try{const h=await api('/health');document.getElementById('craftyDot').className='dot '+(h.crafty_reachable?'dot-ok':'dot-err');}catch(e){document.getElementById('craftyDot').className='dot dot-err';}}
+async function loadServers(){const el=document.getElementById('serversList');el.innerHTML='<div class="empty-state">Loading&hellip;</div>';try{const items=await api('/api/servers');const arr=Array.isArray(items)?items:(items?.servers||[]);if(!arr.length){el.innerHTML='<div class="empty-state">No servers in Crafty yet.</div>';return;}el.innerHTML=arr.map(s=>{const id=s.server_id||s.id||'';const name=s.server_name||s.name||'Unnamed';const type=s.type||s.server_type||'';return `<div class="server-item"><div class="server-name" title="${name}">${name}</div><div class="server-meta">${id?'ID: '+String(id).slice(0,8)+'&hellip;':''} ${type?'&middot; '+type:''}</div><div class="server-actions"><button class="btn btn-secondary btn-sm" onclick="serverAction('${id}','start')">&#9654; Start</button><button class="btn btn-secondary btn-sm" onclick="serverAction('${id}','stop')">&#9632; Stop</button><button class="btn btn-secondary btn-sm" onclick="serverAction('${id}','restart')">&#8635; Restart</button></div></div>`;}).join('');}catch(e){el.innerHTML=`<div class="empty-state text-err">Could not reach Crafty.<br><span class="faint">${e.message}</span></div>`;}}
+async function serverAction(id,action){if(!id)return;try{await api(`/api/servers/${id}/action/${action}`,{method:'POST'});toast(`Server ${action} sent.`,'ok');setTimeout(loadServers,1200);}catch(e){toast(`Action failed: ${e.message}`,'err');}}
+function renderSkeletons(){document.getElementById('catalogGrid').innerHTML=Array.from({length:8}).map(()=>`<div class="pack-card"><div class="shimmer" style="aspect-ratio:16/9;width:100%"></div><div class="pack-body" style="gap:10px"><div class="shimmer" style="height:20px;width:60%"></div><div class="shimmer" style="height:14px;width:100%"></div><div class="shimmer" style="height:14px;width:80%"></div><div class="shimmer" style="height:36px;width:100%;margin-top:8px"></div></div></div>`).join('');}
+function fmtDl(n){if(!n)return '0';if(n>=1e6)return (n/1e6).toFixed(1)+'M';if(n>=1e3)return (n/1e3).toFixed(0)+'K';return String(n);}
+async function doSearch(resetPage=true){if(resetPage)currentPage=0;const q=document.getElementById('searchInput').value.trim();const mc=document.getElementById('mcFilter').value.trim();document.getElementById('pageLabel').textContent=`Page ${currentPage+1}`;document.getElementById('prevPage').disabled=currentPage===0;renderSkeletons();try{const packs=await api(`/api/modpacks/search?q=${encodeURIComponent(q)}&mc_version=${encodeURIComponent(mc)}&page=${currentPage}`);document.getElementById('nextPage').disabled=packs.length<20;if(!packs.length){document.getElementById('catalogGrid').innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:60px 0;color:var(--faint)">No modpacks found.</div>`;return;}document.getElementById('catalogGrid').innerHTML=packs.map(pack=>{const img=pack.logo?.thumbnailUrl||pack.logo?.url||'';const summary=(pack.summary||'No description available.').slice(0,130);const loader=pack.latestFilesIndexes?.[0]?.modLoader||'';const mcVer=pack.latestFilesIndexes?.[0]?.gameVersion||'';return `<div class="pack-card">${img?`<img class="pack-thumb" src="${img}" alt="" loading="lazy" width="300" height="169">`:`<div class="pack-thumb-placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg></div>`}<div class="pack-body"><div class="pack-badges">${loader?`<span class="badge badge-loader">${loader}</span>`:''} ${mcVer?`<span class="badge badge-ver">${mcVer}</span>`:''}</div><div class="pack-title">${pack.name}</div><div class="pack-summary">${summary}</div><div class="pack-footer"><span class="pack-dl">&darr; ${fmtDl(pack.downloadCount)}</span><button class="btn btn-primary btn-sm" onclick='openInstall(${pack.id},${JSON.stringify(pack.name)},${JSON.stringify(pack.summary||"")})'>Install &rarr;</button></div></div></div>`;}).join('');}catch(e){document.getElementById('catalogGrid').innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:60px 0;color:var(--red)">Search failed: ${e.message}</div>`;}}
+function changePage(dir){currentPage=Math.max(0,currentPage+dir);doSearch(false);document.getElementById('catalog').scrollTop=0;}
+async function openInstall(id,name,summary){activePack={id,name};document.getElementById('modalTitle').textContent=`Install: ${name}`;document.getElementById('modalSub').textContent=(summary||'').slice(0,180);document.getElementById('iName').value=name;document.getElementById('iFile').innerHTML='<option disabled selected>Loading files&hellip;</option>';document.getElementById('fileHint').textContent='';document.getElementById('installModal').classList.add('open');try{const files=await api(`/api/modpacks/${id}/files`);packFiles=files;if(!files.length){document.getElementById('iFile').innerHTML='<option value="" disabled>No installable files found</option>';return;}document.getElementById('iFile').innerHTML=files.map(f=>`<option value="${f.id}" data-mc="${f._mc_version||''}" data-loader="${f._loader||'forge'}">${f.displayName||f.fileName}${f._mc_version?' ['+f._mc_version+']':''}</option>`).join('');document.getElementById('iFile').selectedIndex=0;onFileChange();}catch(e){document.getElementById('iFile').innerHTML=`<option disabled>Error: ${e.message}</option>`;}}
+function onFileChange(){const sel=document.getElementById('iFile');const opt=sel.options[sel.selectedIndex];if(!opt||!opt.value)return;const mc=opt.dataset.mc||'';const loader=opt.dataset.loader||'forge';if(mc)document.getElementById('iMcVer').value=mc;if(loader)document.getElementById('iLoader').value=loader;document.getElementById('fileHint').textContent=mc?`MC ${mc} · ${loader}`:loader;}
+function closeModal(){document.getElementById('installModal').classList.remove('open');}
+async function doInstall(){const fileId=document.getElementById('iFile').value;if(!fileId){toast('Please select a file first.','err');return;}const payload={modpack_id:activePack.id,modpack_file_id:Number(fileId),server_name:document.getElementById('iName').value.trim()||activePack.name,mc_version:document.getElementById('iMcVer').value.trim()||'1.20.1',modloader:document.getElementById('iLoader').value,port:Number(document.getElementById('iPort').value),min_ram:Number(document.getElementById('iMinRam').value),max_ram:Number(document.getElementById('iMaxRam').value)};const btn=document.getElementById('installBtn');btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span> Creating…';try{await api('/api/servers/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});toast(`"${payload.server_name}" sent to Crafty! Check Crafty panel for progress.`,'ok');closeModal();setTimeout(loadServers,2000);}catch(e){toast(`Creation failed: ${e.message}`,'err');}finally{btn.disabled=false;btn.innerHTML='Create Crafty server';}}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();if(e.key==='Enter'&&document.activeElement===document.getElementById('searchInput'))doSearch();});
+loadConfig();loadServers();doSearch();
+</script>
+</body>
+</html>
