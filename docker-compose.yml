@@ -4,6 +4,16 @@ version: "3.9"
 #  Crafty Modpack Manager — CasaOS-ready docker-compose
 #  Add to CasaOS via: App Store → Custom Install → paste this file
 # ─────────────────────────────────────────────────────────────────────
+#
+#  ⚠️  IMPORTANT — Keys with $ in them (e.g. CurseForge keys starting
+#  with $2a$10$...) MUST have every $ doubled to $$ in this file,
+#  otherwise Docker Compose treats $ as a variable and corrupts the key.
+#
+#  Example:  $2a$10$abc  →  $$2a$$10$$abc
+#
+#  Alternatively, store secrets in a .env file (no escaping needed there)
+#  and reference them here as:  - CURSEFORGE_API_KEY
+# ─────────────────────────────────────────────────────────────────────
 services:
   crafty-modpack-manager:
     image: chargeyxd/crafty-modpack-manager:latest
@@ -17,9 +27,12 @@ services:
       # Crafty Controller base URL (LAN or Cloudflare tunnel hostname)
       - CRAFTY_URL=https://192.168.68.120:8443
       # Crafty API token — generate in Crafty → Settings → Users → API Keys
-      - CRAFTY_API_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJpYXQiOjE3ODE0MzEzNTgsInRva2VuX2lkIjoxfQ.erjtmcCAfm4Z5Q7OU5-hl6Ez7hpMzJaZ_q132A10iXA
+      # ⚠️ Do NOT commit your real token here — use a .env file instead
+      - CRAFTY_API_TOKEN=REPLACE_WITH_YOUR_CRAFTY_TOKEN
       # CurseForge API key — generate at https://console.curseforge.com/
-      - CURSEFORGE_API_KEY=$2a$10$D3BoNR1P.FX4bw8ESyMWQuUTqdfRZSfbgZwQAX8xrbNUwyYOAXvsq
+      # ⚠️ If your key contains $ characters, double every $ → $$
+      #    e.g. $2a$10$abc → $$2a$$10$$abc
+      - CURSEFORGE_API_KEY=REPLACE_WITH_YOUR_CURSEFORGE_KEY
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -53,4 +66,5 @@ x-casaos:
         Before installing, generate:
         1. A Crafty API token: Crafty → Settings → Users → your user → API Keys tab.
         2. A CurseForge API key: https://console.curseforge.com/
-        Then set both as environment variables in this compose file.
+        Set both as environment variables. If your CurseForge key contains $ signs,
+        double each one in docker-compose.yml ($ → $$), or use a .env file.
