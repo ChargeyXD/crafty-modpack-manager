@@ -157,10 +157,11 @@
       <div class="form-row"><label>Minecraft version</label><input id="iMcVer" class="input" placeholder="e.g. 1.20.1" readonly/></div>
       <div class="form-row"><label>Mod loader</label>
         <select id="iLoader" class="select">
+          <!-- Values must exactly match Crafty's download_jar catalog keys -->
           <option value="forge-installer">Forge</option>
-          <option value="fabric">Fabric</option>
-          <option value="neoforge">NeoForge</option>
-          <option value="quilt">Quilt</option>
+          <option value="fabric-installer">Fabric</option>
+          <option value="neoforge-installer">NeoForge</option>
+          <option value="quilt-installer">Quilt</option>
         </select>
       </div>
       <div class="form-row"><label>Min RAM (MB)</label><input id="iMinRam" class="input" type="number" value="2048" min="512" step="512"/></div>
@@ -394,21 +395,31 @@ async function openInstall(id, name, summary) {
   }
 }
 
+/**
+ * Maps a raw mod loader string (from CurseForge metadata) to the exact key
+ * Crafty's download_jar catalog expects.  All four loaders need the
+ * "-installer" suffix — omitting it causes Crafty to store NULL in
+ * servers.executable_update_url and return a 503.
+ */
+function _toCraftyLoader(raw) {
+  const s = (raw || '').toLowerCase();
+  if (s.includes('neo'))    return 'neoforge-installer';
+  if (s.includes('fabric')) return 'fabric-installer';
+  if (s.includes('quilt'))  return 'quilt-installer';
+  return 'forge-installer'; // default / plain "forge"
+}
+
 function onFileChange() {
   const sel = document.getElementById('iFile');
   const opt = sel.options[sel.selectedIndex];
   if (!opt || !opt.value) return;
   const mc     = opt.dataset.mc     || '';
   const loader = opt.dataset.loader || 'forge-installer';
-  if (mc) document.getElementById('iMcVer').value   = mc;
-  // Map Crafty loader key to select option value
-  const loaderSelect = document.getElementById('iLoader');
-  const loaderVal = loader.includes('neo') ? 'neoforge'
-                  : loader.includes('fabric') ? 'fabric'
-                  : loader.includes('quilt')  ? 'quilt'
-                  : 'forge-installer';
-  loaderSelect.value = loaderVal;
-  document.getElementById('fileHint').textContent = mc ? `MC ${mc} · ${loader}` : loader;
+  if (mc) document.getElementById('iMcVer').value = mc;
+  // Map raw CurseForge loader name → Crafty catalog key
+  const craftyLoader = _toCraftyLoader(loader);
+  document.getElementById('iLoader').value = craftyLoader;
+  document.getElementById('fileHint').textContent = mc ? `MC ${mc} · ${craftyLoader}` : craftyLoader;
 }
 
 function closeModal() {
