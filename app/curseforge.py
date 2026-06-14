@@ -1,5 +1,4 @@
 """CurseForge REST API v1 client."""
-import asyncio
 import httpx
 from app.config import CURSEFORGE_API_KEY, MINECRAFT_GAME_ID, MODPACK_CLASS_ID
 
@@ -17,8 +16,6 @@ _LOADER_MAP = {
 }
 
 # Map to the exact loader string Crafty's download_jar catalog expects.
-# ALL loaders need the -installer suffix (Crafty stores the jar URL in
-# servers.executable_update_url; omitting -installer leaves it NULL).
 _CRAFTY_LOADER_MAP = {
     "forge":    "forge-installer",
     "fabric":   "fabric-installer",
@@ -33,19 +30,15 @@ def _headers() -> dict:
 
 
 def _is_server_pack_file(f: dict) -> bool:
-    """Heuristic: return True when a file entry is a dedicated server pack.
+    """Return True when a file entry is a dedicated server pack.
 
     CurseForge marks server packs in two ways:
-      1. fileType == 1 on the *additional* file record (server pack type).
-      2. The filename starts with 'ServerFiles' (used by ATM, FTB, Technic packs).
-    Either indicator is sufficient.
+      1. f["isServerPack"] == True  (set on files fetched via the batch endpoint)
+      2. The filename starts with 'ServerFiles' (ATM, FTB, Technic convention)
     """
     name: str = f.get("fileName", "") or f.get("displayName", "")
     if name.lower().startswith("serverfiles"):
         return True
-    # CurseForge fileType: 0=release,1=beta,2=alpha -- NOT server flag.
-    # The server-pack flag lives in the parent file's serverPackFileId OR in
-    # the additionalFiles list where isServerPack may be set.
     if f.get("isServerPack") is True:
         return True
     return False
@@ -56,9 +49,9 @@ def _normalize_file(f: dict) -> dict:
     mc_ver = ""
     loader_str = ""
     for v in f.get("gameVersions", []):
-        if v.replace(".", "").isdigit() or (".") in v and not any(
+        if v.replace(".", "").isdigit() or (("." in v) and not any(
             kw in v for kw in ("Forge", "Fabric", "Quilt", "Neo", "Loader")
-        ):
+        )):
             mc_ver = v
         elif any(kw in v for kw in ("Forge", "Fabric", "Quilt", "NeoForge")):
             loader_str = (
@@ -75,34 +68,13 @@ def _normalize_file(f: dict) -> dict:
     elif isinstance(raw_loader_id, str):
         loader_str = raw_loader_id.lower()
 
-    loader_str   = loader_str or "forge"
+    loader_str    = loader_str or "forge"
     crafty_loader = _CRAFTY_LOADER_MAP.get(loader_str, "forge-installer")
 
-    f["_mc_version"]    = mc_ver
-    f["_loader"]        = crafty_loader
+    f["_mc_version"]     = mc_ver
+    f["_loader"]         = crafty_loader
     f["_is_server_pack"] = _is_server_pack_file(f)
     return f
-
-
-async def _fetch_additional_files(client: httpx.AsyncClient, mod_id: int, file_id: int) -> list[dict]:
-    """Return the additional-files list for a given (mod_id, file_id) pair.
-
-    These are the files listed under the 'Additional Files' tab on CurseForge,
-    which is where server packs like ServerFiles-*.zip appear.
-    Silently returns [] on any error so a missing additional-files list never
-    prevents the main file list from rendering.
-    """
-    try:
-        r = await client.get(
-            f"{_CF_BASE}/mods/{mod_id}/files/{file_id}/additional-files",
-            headers=_headers(),
-            timeout=10,
-        )
-        if r.status_code == 200:
-            return r.json().get("data", [])
-    except Exception:
-        pass
-    return []
 
 
 async def search_modpacks(
@@ -138,10 +110,14 @@ async def get_modpack(mod_id: int) -> dict:
 async def get_modpack_files(mod_id: int, mc_version: str | None = None) -> dict:
     """Return normalized file list with server pack files sorted to the top.
 
-    For each main file we also fetch its additional-files list (in parallel)
-    and splice in any server-pack entries found there.  Server pack files are
-    marked with _is_server_pack=True and floated to the beginning of the list
-    so the frontend auto-selects them.
+    CurseForge does NOT expose an additional-files endpoint. Server packs are
+    separate file entries whose IDs are stored in the parent file's
+    serverPackFileId field. We:
+      1. Fetch main file list via GET /v1/mods/{mod_id}/files
+      2. Collect every non-null serverPackFileId value
+      3. Batch-fetch those in a single POST /v1/mods/files call
+      4. Inject each server pack above its parent in the final list,
+         tagged _is_server_pack=True so the frontend auto-selects it
     """
     params: dict = {"pageSize": 50, "sortOrder": "desc"}
     if mc_version:
@@ -155,49 +131,58 @@ async def get_modpack_files(mod_id: int, mc_version: str | None = None) -> dict:
         if not isinstance(main_files, list):
             return raw
 
-        # Fetch additional-files for every main file entry in parallel
-        tasks = [
-            _fetch_additional_files(c, mod_id, f["id"])
-            for f in main_files
-        ]
-        additional_batches: list[list[dict]] = await asyncio.gather(*tasks)
+        # --- Step 2: collect serverPackFileIds ---
+        sp_id_to_parent: dict[int, dict] = {}
+        for f in main_files:
+            sp_id = f.get("serverPackFileId")
+            if sp_id:
+                sp_id_to_parent[int(sp_id)] = f
 
-    # Build the combined file list:
-    #  - server pack additional files go first (deduplicated by id)
-    #  - then main files
+        # --- Step 3: batch-fetch server pack file details ---
+        server_pack_map: dict[int, dict] = {}
+        if sp_id_to_parent:
+            try:
+                sp_resp = await c.post(
+                    f"{_CF_BASE}/mods/files",
+                    headers={**_headers(), "Content-Type": "application/json"},
+                    json={"fileIds": list(sp_id_to_parent.keys())},
+                    timeout=15,
+                )
+                if sp_resp.status_code == 200:
+                    for sp_file in sp_resp.json().get("data", []):
+                        server_pack_map[sp_file["id"]] = sp_file
+            except Exception:
+                pass  # Missing server packs are non-fatal
+
+    # --- Step 4: build combined list ---
+    # For each main file: if it has a resolved server pack, inject it first.
+    # Deduplicate by file id.
     seen_ids: set[int] = set()
-    server_packs: list[dict] = []
-    normal_files: list[dict] = []
+    combined: list[dict] = []
 
-    # Collect server pack additional files first
-    for main_f, add_files in zip(main_files, additional_batches):
-        for af in add_files:
-            fid = af.get("id")
-            if fid in seen_ids:
-                continue
-            seen_ids.add(fid)
-            norm = _normalize_file(dict(af))
-            # Inherit MC version / loader from parent if the additional file
-            # doesn't carry its own gameVersions list
-            if not norm["_mc_version"]:
-                parent = _normalize_file(dict(main_f))
-                norm["_mc_version"] = parent["_mc_version"]
-                norm["_loader"]     = parent["_loader"]
-            if norm["_is_server_pack"]:
-                server_packs.append(norm)
-            # Non-server additional files are intentionally excluded --
-            # they are typically language packs / patch files, not useful here.
-
-    # Collect main files
     for f in main_files:
-        fid = f.get("id")
-        if fid in seen_ids:
-            continue
-        seen_ids.add(fid)
-        norm = _normalize_file(dict(f))
-        normal_files.append(norm)
+        # Inject server pack entry before the parent file
+        sp_id = f.get("serverPackFileId")
+        if sp_id and int(sp_id) not in seen_ids and int(sp_id) in server_pack_map:
+            sp_file = dict(server_pack_map[int(sp_id)])
+            # Inherit MC version/loader from parent if server pack file lacks them
+            parent_norm = _normalize_file(dict(f))
+            sp_norm = _normalize_file(sp_file)
+            if not sp_norm["_mc_version"]:
+                sp_norm["_mc_version"] = parent_norm["_mc_version"]
+                sp_norm["_loader"]     = parent_norm["_loader"]
+            # Force the server pack flag regardless of what the API returned
+            sp_norm["_is_server_pack"] = True
+            sp_norm["isServerPack"]    = True
+            seen_ids.add(int(sp_id))
+            combined.append(sp_norm)
 
-    combined = server_packs + normal_files
+        # Add the main file itself
+        fid = f.get("id")
+        if fid not in seen_ids:
+            seen_ids.add(fid)
+            combined.append(_normalize_file(dict(f)))
+
     raw["data"] = combined
     return raw
 
